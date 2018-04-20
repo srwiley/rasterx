@@ -1,6 +1,7 @@
 # rasterx
 
-Rasterx is a golang package derived from the raster package in the [golang freetype](https://github.com/golang/freetype) translation. It enhances the orginal by addition additional features including a path stroking function that is SVG2.0 compliant. 
+Rasterx is a golang package derived from the raster package in the [golang freetype](https://github.com/golang/freetype) translation. It enhances the orginal by additional features including a path stroking function capable of SVG 2.0 compliant arc joins and explicit closing.
+
 * Paths can be explicity closed or left open, resulting in a line join or end caps. 
 * Arc joins are supported, which causes the extending edge from a Bezier curve to follow the radius of curvature at the end point rather than a straight line miter, resulting in a more fliud looking join. 
 * Not specified in the SVG2.0 spec., but supported in rasterx is the arc-clip join, which is the arc join analog of a miter-clip join, both of which end the miter at a specified distance, rather than all or nothing.
