@@ -8,7 +8,7 @@ Rasterx is a golang package derived from the raster package in the [golang freet
 * Several cap and gap functions in addition to those specified by SVG2.0 are implemented.
 
 
-![rasterx example](/TestShapes4.svg.png?raw=true "Rasterx Example")
+![rasterx example](/doc/TestShapes4.svg.png?raw=true "Rasterx Example")
 
 The above image shows the effect of using different join modes for a stroked curving path. The top stroked path uses miter (green) or arc (red, yellow, orange) join functions with high miter limit. The middle and lower path shows the effect of using the miter-clip and arc-clip joins, repectively, with different miter-limit values. The black chevrons at the top show different cap and gap functions.
 
@@ -16,7 +16,7 @@ Rasterx has refactored the orignal raster package in addition to providing a new
 
 Also the Path data format is changed from the orignal raster package to 1) eliminate the redundant token on both sides of a path segment, and 2) add a close command. The close command is added to the Adder interface, and every Rasterizer also implements Adder.
 
-![rasterx Scheme](/schematic.png?raw=true "Rasterx Scheme")
+![rasterx Scheme](/doc/schematic.png?raw=true "Rasterx Scheme")
 
 Eash of the Filler, Dasher, and Stroker can function on their own and each implement the Rasterizer interface, so if you need just the curve filling but no stroking capability, you only need a Filler. On the other hand if you have created a Dasher and want to use it to Fill, you can just do this:
 
