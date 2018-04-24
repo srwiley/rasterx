@@ -17,7 +17,7 @@ Also the Path data format is changed from the orignal raster package to 1) elimi
 
 ![rasterx Scheme](/doc/schematic.png?raw=true "Rasterx Scheme")
 
-Eash of the Filler, Dasher, and Stroker can function on their own and each implement the Rasterizer interface, so if you need just the curve filling but no stroking capability, you only need a Filler. On the other hand if you have created a Dasher and want to use it to Fill, you can just do this:
+Any instance of the Filler, Dasher, and Stroker can function on their own and each implements the Rasterizer interface. So if you need just the curve filling but no stroking capability, you only need to instantiate a Filler. On the other hand if you have created a Dasher and want to use it to Fill, you can just do this:
 
 ```golang
 filler := &dasher.Filler
