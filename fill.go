@@ -1,131 +1,188 @@
-// Copyright 2010 The Freetype-Go Authors. All rights reserved.
-// Use of this source code is governed by your choice of either the
-// FreeType License or the GNU General Public License version 2 (or
-// any later version), both of which can be found in the LICENSE file.
+// Copyright 2018 by the rasterx Authors. All rights reserved.
 //_
-// Package raster provides an anti-aliasing 2-D rasterizer.
-// It is part of the larger Freetype suite of font-related packages, but the
-// raster package is not specific to font rasterization, and can be used
-// standalone without any other Freetype package.
-// Rasterization is done by the same area/coverage accumulation algorithm as
-// the Freetype "smooth" module, and the Anti-Grain Geometry library. A
-// description of the area/coverage algorithm is at
-// http://projects.tuxee.net/cl-vectors/section-the-cl-aa-algorithm
-// _
-// _
-// 2017: Modifications and refactorizations have been made by the rasterx package
-// in order to isolate isolates the scanner struct which adds lines
-// to the rasterizer vs the filler which can add bezier curves to the scanner.
-// All modifications are subject to the same licenses as the original rights
-// declaration.
-// The format of the Path data is changed and expaned to include close (see geom.go).
-// All modifications are subject to the same licenses as the original rights
-// declaration.
-
+// Created 2017 by S.R.Wiley
 package rasterx
 
 import (
-	"strconv"
+	"image/color"
+	"math"
 
 	"golang.org/x/image/math/fixed"
 )
 
-// dev is 32-bit, and nsplit++ every time we shift off 2 bits, so maxNsplit
-// is 16.
-const maxNsplit = 16
-
 type (
-	Rasterizer interface {
+	Scanner interface {
+		Start(a fixed.Point26_6)
+		Line(b fixed.Point26_6)
+		Draw()
+		SetBounds(w, h int)
+		SetColor(color.Color)
+		SetWinding(useNonZeroWinding bool)
+		Clear()
+	}
+
+	Adder interface {
+		// Start starts a new curve at the given point.
+		Start(a fixed.Point26_6)
+		// Line adds a line segment to the path
+		Line(b fixed.Point26_6)
+		// QuadBezier adds a quadratic bezier curve to the path
+		QuadBezier(b, c fixed.Point26_6)
+		// CubeBezier adds a cubic bezier curve to the path
+		CubeBezier(b, c, d fixed.Point26_6)
+		// Closes the path to the start point if closeLoop is true
+		Stop(closeLoop bool)
+	}
+
+	Rasterx interface {
 		Adder
-		SetBounds(width, height int)
-		Rasterize(p Painter)
 		lineF(b fixed.Point26_6)
 		joinF()
 	}
 
-	// Filler fills a path using the grainless algorithm.
+	// Filler satisfies Rasterx
 	Filler struct {
 		Scanner
-
-		// splitScaleN is the scaling factor used to determine how many times
-		// to decompose a quadratic or cubic segment into a linear approximation.
-		splitScale2, splitScale3 int
-
-		//Stacks used by add2 and add3 for bezier curve decomposition
-		pStack []fixed.Point26_6
-		sStack []int
+		a, first fixed.Point26_6
 	}
 )
+
+// Start starts a new path at the given point.
+func (r *Filler) Start(a fixed.Point26_6) {
+	r.a = a
+	r.first = a
+	r.Scanner.Start(a)
+}
+
+// Start starts a new path at the given point.
+func (r *Filler) Stop(isClosed bool) {
+	if r.first != r.a {
+		r.Line(r.first)
+	}
+}
 
 // QuadBezier adds a quadratic segment to the current curve.
 func (r *Filler) QuadBezier(b, c fixed.Point26_6) {
 	r.QuadBezierF(r, b, c)
 }
 
+func devSquaredFx(ax, ay, bx, by, cx, cy fixed.Int26_6) fixed.Int26_6 {
+	devx := ax - 2*bx + cx
+	devy := ay - 2*by + cy
+	return (devx*devx + devy*devy) >> 6
+}
+
+//func QuadToFixed(ax, ay, bx, by, cx, cy fixed.Int26_6, LineTo func(dx, dy fixed.Int26_6)) {
+//	const tshift = 12
+//	devsq := devSquaredFx(ax, ay, bx, by, cx, cy)
+//	if devsq >=  fixed.Int26_6{64/3} {
+//		const tol = 3
+//		n := 64 + fixed.Int26_6{math.Sqrt(math.Sqrt(tol*float64(devsq)))*64}
+//		t, nInv := fixed.Int26_6{0}, fixed.Int26_6(float32(1<<tshift)/float32(n))<<6
+//		for i := 0; i < n-1; i++ {
+//			t += nInv
+//			mt := 1 - t
+//			t1 := mt * mt
+//			t2 := mt * t * 2
+//			t3 := t * t
+//			LineTo(
+//				ax*t1+bx*t2+cx*t3,
+//				ay*t1+by*t2+cy*t3)
+//		}
+//	}
+//	LineTo(cx, cy)
+//}
+
+// QuadTo flattens the quadratic Bezier curve into lines through the LineTo func
+// This functions is adapted from the version found in
+// golang.org/x/image/vector
+func QuadTo(ax, ay, bx, by, cx, cy float32, LineTo func(dx, dy float32)) {
+	devsq := devSquared(ax, ay, bx, by, cx, cy)
+	if devsq >= 0.333 {
+		const tol = 3
+		n := 1 + int(math.Sqrt(math.Sqrt(tol*float64(devsq))))
+		t, nInv := float32(0), 1/float32(n)
+		for i := 0; i < n-1; i++ {
+			t += nInv
+
+			mt := 1 - t
+			t1 := mt * mt
+			t2 := mt * t * 2
+			t3 := t * t
+			LineTo(
+				ax*t1+bx*t2+cx*t3,
+				ay*t1+by*t2+cy*t3)
+		}
+	}
+	LineTo(cx, cy)
+}
+
+// CubeTo flattens the cubic Bezier curve into lines through the LineTo func
+// This functions is adapted from the version found in
+// golang.org/x/image/vector
+func CubeTo(ax, ay, bx, by, cx, cy, dx, dy float32, LineTo func(ex, ey float32)) {
+	devsq := devSquared(ax, ay, bx, by, dx, dy)
+	if devsqAlt := devSquared(ax, ay, cx, cy, dx, dy); devsq < devsqAlt {
+		devsq = devsqAlt
+	}
+	if devsq >= 0.333 {
+		const tol = 3
+		n := 1 + int(math.Sqrt(math.Sqrt(tol*float64(devsq))))
+		t, nInv := float32(0), 1/float32(n)
+		for i := 0; i < n-1; i++ {
+			t += nInv
+
+			tsq := t * t
+			mt := 1 - t
+			mtsq := mt * mt
+			t1 := mtsq * mt
+			t2 := mtsq * t * 3
+			t3 := mt * tsq * 3
+			t4 := tsq * t
+			LineTo(
+				ax*t1+bx*t2+cx*t3+dx*t4,
+				ay*t1+by*t2+cy*t3+dy*t4)
+		}
+	}
+	LineTo(dx, dy)
+}
+
+// devSquared returns a measure of how curvy the sequence (ax, ay) to (bx, by)
+// to (cx, cy) is. It determines how many line segments will approximate a
+// Bézier curve segment. This functions is copied from the version found in
+// golang.org/x/image/vector
+//
+// http://lists.nongnu.org/archive/html/freetype-devel/2016-08/msg00080.html
+// gives the rationale for this evenly spaced heuristic instead of a recursive
+// de Casteljau approach:
+//
+// The reason for the subdivision by n is that I expect the "flatness"
+// computation to be semi-expensive (it's done once rather than on each
+// potential subdivision) and also because you'll often get fewer subdivisions.
+// Taking a circular arc as a simplifying assumption (ie a spherical cow),
+// where I get n, a recursive approach would get 2^⌈lg n⌉, which, if I haven't
+// made any horrible mistakes, is expected to be 33% more in the limit.
+func devSquared(ax, ay, bx, by, cx, cy float32) float32 {
+	devx := ax - 2*bx + cx
+	devy := ay - 2*by + cy
+	return devx*devx + devy*devy
+}
+
 // QuadBezierF adds a quadratic segment to the sgm Rasterizer.
-func (r *Filler) QuadBezierF(sgm Rasterizer, b, c fixed.Point26_6) {
+func (r *Filler) QuadBezierF(sgm Rasterx, b, c fixed.Point26_6) {
 	// check for degenerate bezier
 	if r.a == b || b == c {
 		sgm.Line(c)
 		return
 	}
-
 	sgm.joinF()
+	QuadTo(float32(r.a.X), float32(r.a.Y), // Pts are x64, but does not matter.
+		float32(b.X), float32(b.Y),
+		float32(c.X), float32(c.Y),
+		func(dx, dy float32) {
+			sgm.Line(fixed.Point26_6{fixed.Int26_6(dx), fixed.Int26_6(dy)})
+		})
 
-	// Calculate nSplit (the number of recursive decompositions) based on how
-	// 'curvy' it is. Specifically, how much the middle point b deviates from
-	// (a+c)/2.
-	dev := maxAbs(r.a.X-2*b.X+c.X, r.a.Y-2*b.Y+c.Y) / fixed.Int26_6(r.splitScale2)
-	nsplit := 0
-	for dev > 0 {
-		dev /= 4
-		nsplit++
-	}
-	if nsplit > maxNsplit {
-		panic("freetype/raster: Add2 nsplit too large: " + strconv.Itoa(nsplit))
-	}
-	// Recursively decompose the curve nSplit levels deep.
-	var i, pPlace, sPlace = 0, len(r.pStack), len(r.sStack)
-
-	r.ExpandStacks(pPlace+2*maxNsplit+3, sPlace+maxNsplit+1)
-
-	r.sStack[sPlace] = nsplit
-	r.pStack[pPlace] = c
-	r.pStack[pPlace+1] = b
-	r.pStack[pPlace+2] = r.a
-	for i >= 0 {
-		s := r.sStack[i+sPlace]
-		p := r.pStack[2*i+pPlace:]
-		if s > 0 {
-			// Split the quadratic curve p[:3] into an equivalent set of two
-			// shorter curves: p[:3] and p[2:5]. The new p[4] is the old p[2],
-			// and p[0] is unchanged.
-			mx := p[1].X
-			p[4].X = p[2].X
-			p[3].X = (p[4].X + mx) / 2
-			p[1].X = (p[0].X + mx) / 2
-			p[2].X = (p[1].X + p[3].X) / 2
-			my := p[1].Y
-			p[4].Y = p[2].Y
-			p[3].Y = (p[4].Y + my) / 2
-			p[1].Y = (p[0].Y + my) / 2
-			p[2].Y = (p[1].Y + p[3].Y) / 2
-			// The two shorter curves have one less split to do.
-			r.sStack[i+sPlace] = s - 1
-			r.sStack[i+1+sPlace] = s - 1
-			i++
-		} else {
-			// Replace the level-0 quadratic with a two-linear-piece
-			// approximation.
-			midx := (p[0].X + 2*p[1].X + p[2].X) / 4
-			midy := (p[0].Y + 2*p[1].Y + p[2].Y) / 4
-			sgm.lineF(fixed.Point26_6{midx, midy})
-			sgm.lineF(p[0])
-			i--
-		}
-	}
-	r.sStack = r.sStack[:sPlace]
-	r.pStack = r.pStack[:pPlace]
 }
 
 // CubeBezier adds a cubic bezier to the curve
@@ -140,84 +197,31 @@ func (r *Filler) joinF() {
 }
 
 // lineF for a filling rasterizer is just the line call in scan
+func (r *Filler) Line(b fixed.Point26_6) {
+	r.lineF(b)
+}
+
+// lineF for a filling rasterizer is just the line call in scan
 func (r *Filler) lineF(b fixed.Point26_6) {
-	r.Line(b)
+	r.Scanner.Line(b)
+	r.a = b
 }
 
 // CubeBezier adds a cubic bezier to the curve. sending the line calls the the
 // sgm Rasterizer
-func (r *Filler) CubeBezierF(sgm Rasterizer, b, c, d fixed.Point26_6) {
+func (r *Filler) CubeBezierF(sgm Rasterx, b, c, d fixed.Point26_6) {
 	if (r.a == b && c == d) || (r.a == b && b == c) || (c == b && d == c) {
 		sgm.Line(d)
 		return
 	}
 	sgm.joinF()
-	// Calculate nSplit (the number of recursive decompositions) based on how
-	// 'curvy' it is.
-	dev2 := maxAbs(r.a.X-3*(b.X+c.X)+d.X, r.a.Y-3*(b.Y+c.Y)+d.Y) / fixed.Int26_6(r.splitScale2)
-	dev3 := maxAbs(r.a.X-2*b.X+d.X, r.a.Y-2*b.Y+d.Y) / fixed.Int26_6(r.splitScale3)
-	nsplit := 0
-	for dev2 > 0 || dev3 > 0 {
-		dev2 /= 8
-		dev3 /= 4
-		nsplit++
-	}
-
-	// devN is 32-bit, and nsplit++ every time we shift off 2 bits, so
-	// maxNsplit is 16.
-	//const maxNsplit = 16
-	if nsplit > maxNsplit {
-		panic("freetype/raster: Add3 nsplit too large: " + strconv.Itoa(nsplit))
-	}
-	// Recursively decompose the curve nSplit levels deep.
-	var i, pPlace, sPlace = 0, len(r.pStack), len(r.sStack)
-	r.ExpandStacks(pPlace+3*maxNsplit+4, sPlace+maxNsplit+1)
-	r.sStack[sPlace] = nsplit
-	r.pStack[pPlace] = d
-	r.pStack[pPlace+1] = c
-	r.pStack[pPlace+2] = b
-	r.pStack[pPlace+3] = r.a
-	for i >= 0 {
-		s := r.sStack[i+sPlace]
-		p := r.pStack[3*i+pPlace:]
-
-		if s > 0 {
-			// Split the cubic curve p[:4] into an equivalent set of two
-			// shorter curves: p[:4] and p[3:7]. The new p[6] is the old p[3],
-			// and p[0] is unchanged.
-			m01x := (p[0].X + p[1].X) / 2
-			m12x := (p[1].X + p[2].X) / 2
-			m23x := (p[2].X + p[3].X) / 2
-			p[6].X = p[3].X
-			p[5].X = m23x
-			p[1].X = m01x
-			p[2].X = (m01x + m12x) / 2
-			p[4].X = (m12x + m23x) / 2
-			p[3].X = (p[2].X + p[4].X) / 2
-			m01y := (p[0].Y + p[1].Y) / 2
-			m12y := (p[1].Y + p[2].Y) / 2
-			m23y := (p[2].Y + p[3].Y) / 2
-			p[6].Y = p[3].Y
-			p[5].Y = m23y
-			p[1].Y = m01y
-			p[2].Y = (m01y + m12y) / 2
-			p[4].Y = (m12y + m23y) / 2
-			p[3].Y = (p[2].Y + p[4].Y) / 2
-			// The two shorter curves have one less split to do.
-			r.sStack[i+sPlace] = s - 1
-			r.sStack[i+1+sPlace] = s - 1
-			i++
-		} else {
-			// Replace the level-0 cubic with a two-linear-piece approximation.
-			midx := (p[0].X + 3*(p[1].X+p[2].X) + p[3].X) / 8
-			midy := (p[0].Y + 3*(p[1].Y+p[2].Y) + p[3].Y) / 8
-			sgm.lineF(fixed.Point26_6{midx, midy})
-			sgm.lineF(p[0])
-			i--
-		}
-	}
-	r.sStack = r.sStack[:sPlace]
-	r.pStack = r.pStack[:pPlace]
+	CubeTo(float32(r.a.X), float32(r.a.Y),
+		float32(b.X), float32(b.Y),
+		float32(c.X), float32(c.Y),
+		float32(d.X), float32(d.Y),
+		func(ex, ey float32) {
+			sgm.Line(fixed.Point26_6{fixed.Int26_6(ex), fixed.Int26_6(ey)})
+		})
 }
 
 // SetBounds sets the maximum width and height of the rasterized image and
@@ -229,47 +233,22 @@ func (r *Filler) SetBounds(width, height int) {
 	if height < 0 {
 		height = 0
 	}
-	// Use the same ssN heuristic as the C Freetype (version 2.4.0)
-	// implementation.
-	ss2, ss3 := 32, 16
-	if width > 24 || height > 24 {
-		ss2, ss3 = 2*ss2, 2*ss3
-		if width > 120 || height > 120 {
-			ss2, ss3 = 2*ss2, 2*ss3
-		}
-	}
-	r.splitScale2 = ss2
-	r.splitScale3 = ss3
 	r.Scanner.SetBounds(width, height)
+	r.Clear()
 }
 
 // NewFiller returns a Filler ptr with default values.
 // A Filler in addition to rasterizing lines like a Scann,
 // can also rasterize quadratic and cubic bezier curves.
-func NewFiller(width, height int) *Filler {
+// If Scanner is nil default scanner ScannerGV is used
+func NewFiller(width, height int, scanner Scanner) *Filler {
 	r := new(Filler)
+	if scanner != nil {
+		r.Scanner = scanner
+	} else {
+		r.Scanner = new(ScannerGV)
+	}
 	r.SetBounds(width, height)
-	r.UseNonZeroWinding = true
+	r.SetWinding(true)
 	return r
-}
-
-// ExpandStacks expands the recursion stacks to respective sizes,
-// and reallocates slice if nec. It is exposed so that users can pre-expand.
-func (r *Filler) ExpandStacks(pSize, sSize int) {
-	//Expand pStack if required
-	if pSize > cap(r.pStack) {
-		newSlice := make([]fixed.Point26_6, pSize, 2*pSize)
-		copy(newSlice, r.pStack)
-		r.pStack = newSlice
-	} else {
-		r.pStack = r.pStack[:pSize]
-	}
-	//Expand sStack if required
-	if sSize > cap(r.sStack) {
-		newSlice := make([]int, sSize, 2*sSize)
-		copy(newSlice, r.sStack)
-		r.sStack = newSlice
-	} else {
-		r.sStack = r.sStack[:sSize]
-	}
 }

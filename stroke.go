@@ -1,7 +1,4 @@
 // Copyright 2017 by the rasterx Authors. All rights reserved.
-// Use of this source code is governed by your choice of either the
-// FreeType License or the GNU General Public License version 2 (or
-// any later version), both of which can be found in the LICENSE file.
 //
 // created: 2017 by S.R.Wiley
 package rasterx
@@ -70,11 +67,16 @@ const (
 // A Stroker has all of the capabilities of a Filler and Scanner, plus the ability
 // to stroke curves with solid lines. Use SetStroke to configure with non-default
 // values.
-func NewStroker(width, height int) *Stroker {
+func NewStroker(width, height int, scanner Scanner) *Stroker {
 	r := new(Stroker)
+	if scanner != nil {
+		r.Scanner = scanner
+	} else {
+		r.Scanner = new(ScannerGV)
+	}
 	r.SetBounds(width, height)
 	//Defaults for stroking
-	r.UseNonZeroWinding = true
+	//r.UseNonZeroWinding = true
 	r.u = 2 << 6
 	r.mLimit = 4 << 6
 	r.JoinMode = MiterClip
@@ -121,7 +123,7 @@ func (r *Stroker) SetStroke(width, miterLimit fixed.Int26_6, capL, capT CapFunc,
 // GapToCap is a utility that converts a CapFunc to GapFunc
 func GapToCap(p Adder, a, eNorm fixed.Point26_6, gf GapFunc) {
 	p.Start(a.Add(eNorm))
-	gf(p, a, eNorm, pNeg(eNorm))
+	gf(p, a, eNorm, Invert(eNorm))
 	p.Line(a.Sub(eNorm))
 }
 
@@ -133,7 +135,7 @@ var (
 	}
 	// SquareCap caps lines with a square which is slightly longer than ButtCap
 	SquareCap CapFunc = func(p Adder, a, eNorm fixed.Point26_6) {
-		tpt := a.Add(pRot90CW(eNorm))
+		tpt := a.Add(turnStarboard90(eNorm))
 		p.Start(a.Add(eNorm))
 		p.Line(tpt.Add(eNorm))
 		p.Line(tpt.Sub(eNorm))
@@ -165,11 +167,11 @@ var (
 	}
 	// CubicGap bridges miter-limit gaps with a cubic bezier
 	CubicGap GapFunc = func(p Adder, a, tNorm, lNorm fixed.Point26_6) {
-		p.CubeBezier(a.Add(tNorm).Add(pRot90CW(tNorm)), a.Add(lNorm).Add(pRot90CCW(lNorm)), a.Add(lNorm))
+		p.CubeBezier(a.Add(tNorm).Add(turnStarboard90(tNorm)), a.Add(lNorm).Add(turnPort90(lNorm)), a.Add(lNorm))
 	}
 	// QuadraticGap bridges miter-limit gaps with a quadratic bezier
 	QuadraticGap GapFunc = func(p Adder, a, tNorm, lNorm fixed.Point26_6) {
-		c1, c2 := a.Add(tNorm).Add(pRot90CW(tNorm)), a.Add(lNorm).Add(pRot90CCW(lNorm))
+		c1, c2 := a.Add(tNorm).Add(turnStarboard90(tNorm)), a.Add(lNorm).Add(turnPort90(lNorm))
 		cm := c1.Add(c2).Mul(fixed.Int26_6(1 << 5))
 		p.QuadBezier(cm, a.Add(lNorm))
 	}
@@ -210,7 +212,7 @@ func strokeArc(p Adder, a, s1, s2 fixed.Point26_6, clockwise bool, trimStart,
 	dTheta := deltaTheta / float64(segs)
 	tde := math.Tan(dTheta / 2)
 	alpha := fixed.Int26_6(math.Sin(dTheta) * (math.Sqrt(4+3*tde*tde) - 1) * (64.0 / 3.0)) // Math is fun!
-	r := float64(pLen(s1.Sub(a)))                                                          // Note r is *64
+	r := float64(Length(s1.Sub(a)))                                                        // Note r is *64
 	ldp := fixed.Point26_6{-fixed.Int26_6(r * math.Sin(theta1)), fixed.Int26_6(r * math.Cos(theta1))}
 	ds1 = ldp
 	ps1 = fixed.Point26_6{a.X + ldp.Y, a.Y - ldp.X}
@@ -233,8 +235,8 @@ func strokeArc(p Adder, a, s1, s2 fixed.Point26_6, clockwise bool, trimStart,
 func (s *Stroker) Joiner(p C2Point) {
 	crossProd := p.LNorm.X*p.TNorm.Y - p.TNorm.X*p.LNorm.Y
 	// stroke bottom edge, with the reverse of p
-	s.strokeEdge(C2Point{P: p.P, TNorm: pNeg(p.LNorm), LNorm: pNeg(p.TNorm),
-		TTan: pNeg(p.LTan), LTan: pNeg(p.TTan), RT: -p.RL, RL: -p.RT}, -crossProd)
+	s.strokeEdge(C2Point{P: p.P, TNorm: Invert(p.LNorm), LNorm: Invert(p.TNorm),
+		TTan: Invert(p.LTan), LTan: Invert(p.TTan), RT: -p.RL, RL: -p.RT}, -crossProd)
 	// stroke top edge
 	s.strokeEdge(p, crossProd)
 }
@@ -261,10 +263,10 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 		// by half the stroke width.
 		if p.RT != 0 {
 			if p.RT > 0 {
-				ct = p.P.Add(pNorm(pRot90CCW(p.TTan), p.RT))
+				ct = p.P.Add(ToLength(turnPort90(p.TTan), p.RT))
 				rt = p.RT - r.u
 			} else {
-				ct = p.P.Sub(pNorm(pRot90CCW(p.TTan), -p.RT))
+				ct = p.P.Sub(ToLength(turnPort90(p.TTan), -p.RT))
 				rt = -p.RT + r.u
 			}
 			if rt < 0 {
@@ -273,10 +275,10 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 		}
 		if p.RL != 0 {
 			if p.RL > 0 {
-				cl = p.P.Add(pNorm(pRot90CCW(p.LTan), p.RL))
+				cl = p.P.Add(ToLength(turnPort90(p.LTan), p.RL))
 				rl = p.RL - r.u
 			} else {
-				cl = p.P.Sub(pNorm(pRot90CCW(p.LTan), -p.RL))
+				cl = p.P.Sub(ToLength(turnPort90(p.LTan), -p.RL))
 				rl = -p.RL + r.u
 			}
 			if rl < 0 {
@@ -291,28 +293,28 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 		((r.JoinMode == Arc || r.JoinMode == ArcClip) && (rt == 0 && rl == 0)) {
 		xt := CalcIntersect(s1.Sub(p.TTan), s1, s2, s2.Sub(p.LTan))
 		xa := xt.Sub(p.P)
-		if pLen(xa) < r.mLimit { // within miter limit
+		if Length(xa) < r.mLimit { // within miter limit
 			ra.Line(xt)
 			ra.Line(s2)
 			return
 		}
 		if r.JoinMode == MiterClip || (r.JoinMode == ArcClip) {
 			//Projection of tNorm onto xa
-			tProjP := xa.Mul(fixed.Int26_6((pDot(xa, p.TNorm) << 6) / pDot(xa, xa)))
-			projLen := pLen(tProjP)
+			tProjP := xa.Mul(fixed.Int26_6((DotProd(xa, p.TNorm) << 6) / DotProd(xa, xa)))
+			projLen := Length(tProjP)
 			if r.mLimit > projLen { // the miter limit line is past the bevel point
 				// t is the fraction shifted by tStrokeShift to scale the vectors from the bevel point
 				// to the line intersection, so that they abbut the miter limit line.
-				tipLen := pLen(xa)
+				tiLength := Length(xa)
 				sx1, sx2 := xt.Sub(s1), xt.Sub(s2)
-				t := (r.mLimit - projLen) << tStrokeShift / (tipLen - projLen)
-				tx := pNorm(sx1, t*pLen(sx1)>>tStrokeShift)
-				lx := pNorm(sx2, t*pLen(sx2)>>tStrokeShift)
-				vx := pNorm(xa, t*pLen(xa)>>tStrokeShift)
+				t := (r.mLimit - projLen) << tStrokeShift / (tiLength - projLen)
+				tx := ToLength(sx1, t*Length(sx1)>>tStrokeShift)
+				lx := ToLength(sx2, t*Length(sx2)>>tStrokeShift)
+				vx := ToLength(xa, t*Length(xa)>>tStrokeShift)
 				s1p, _, ap := s1.Add(tx), s2.Add(lx), p.P.Add(vx)
-				gLen := pLen(ap.Sub(s1p))
+				gLen := Length(ap.Sub(s1p))
 				ra.Line(s1p)
-				r.JoinGap(ra, ap, pNorm(pRot90CCW(p.TTan), gLen), pNorm(pRot90CCW(p.LTan), gLen))
+				r.JoinGap(ra, ap, ToLength(turnPort90(p.TTan), gLen), ToLength(turnPort90(p.LTan), gLen))
 				ra.Line(s2)
 				return
 			}
@@ -326,7 +328,7 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 			if intersect {
 				ray1, ray2 := xt.Sub(cl), s2.Sub(cl)
 				clockwise := (ray1.X*ray2.Y > ray1.Y*ray2.X) // Sign of xprod
-				if pLen(p.P.Sub(xt)) < r.mLimit {            // within miter limit
+				if Length(p.P.Sub(xt)) < r.mLimit {          // within miter limit
 					strokeArc(ra, cl, xt, s2, clockwise, 0, 0, ra.Line)
 					ra.Line(s2)
 					return
@@ -335,28 +337,28 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 				if r.JoinMode == ArcClip { // Scale bevel points towards xt, and call gap func
 					xa := xt.Sub(p.P)
 					//Projection of tNorm onto xa
-					tProjP := xa.Mul(fixed.Int26_6((pDot(xa, p.TNorm) << 6) / pDot(xa, xa)))
-					projLen := pLen(tProjP)
+					tProjP := xa.Mul(fixed.Int26_6((DotProd(xa, p.TNorm) << 6) / DotProd(xa, xa)))
+					projLen := Length(tProjP)
 					if r.mLimit > projLen { // the miter limit line is past the bevel point
 						// t is the fraction shifted by tStrokeShift to scale the line or arc from the bevel point
 						// to the line intersection, so that they abbut the miter limit line.
 						sx1 := xt.Sub(s1) //, xt.Sub(s2)
-						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (pLen(xa) - projLen))
-						tx := pNorm(sx1, t*pLen(sx1)>>tStrokeShift)
+						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (Length(xa) - projLen))
+						tx := ToLength(sx1, t*Length(sx1)>>tStrokeShift)
 						s1p := xt.Sub(tx)
 						ra.Line(s1p)
 						sp1, ds1, ps2, _ := strokeArc(ra, cl, xt, s2, clockwise, t, 0, ra.Start)
 						ra.Start(s1p)
 						// calc gap center as pt where -tnorm and line perp to midcoord
 						midP := sp1.Add(s1p).Mul(fixed.Int26_6(1 << 5)) // midpoint
-						midLine := pRot90CCW(midP.Sub(sp1))
+						midLine := turnPort90(midP.Sub(sp1))
 						if midLine.X*midLine.X+midLine.Y*midLine.Y > epsilonFixed { // if midline is zero, CalcIntersect is invalid
 							ap := CalcIntersect(s1p, s1p.Sub(p.TNorm), midLine.Add(midP), midP)
-							gLen := pLen(ap.Sub(s1p))
+							gLen := Length(ap.Sub(s1p))
 							if clockwise {
-								ds1 = pNeg(ds1)
+								ds1 = Invert(ds1)
 							}
-							r.JoinGap(ra, ap, pNorm(pRot90CCW(p.TTan), gLen), pNorm(pRot90CW(ds1), gLen))
+							r.JoinGap(ra, ap, ToLength(turnPort90(p.TTan), gLen), ToLength(turnStarboard90(ds1), gLen))
 						}
 						ra.Line(sp1)
 						ra.Start(ps2)
@@ -371,7 +373,7 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 			if intersect {
 				ray1, ray2 := s1.Sub(ct), xt.Sub(ct)
 				clockwise := ray1.X*ray2.Y > ray1.Y*ray2.X
-				if pLen(p.P.Sub(xt)) < r.mLimit { // within miter limit
+				if Length(p.P.Sub(xt)) < r.mLimit { // within miter limit
 					strokeArc(ra, ct, s1, xt, clockwise, 0, 0, ra.Line)
 					ra.Line(s2)
 					return
@@ -380,26 +382,26 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 				if r.JoinMode == ArcClip { // Scale bevel points towards xt, and call gap func
 					xa := xt.Sub(p.P)
 					//Projection of lNorm onto xa
-					lProjP := xa.Mul(fixed.Int26_6((pDot(xa, p.LNorm) << 6) / pDot(xa, xa)))
-					projLen := pLen(lProjP)
+					lProjP := xa.Mul(fixed.Int26_6((DotProd(xa, p.LNorm) << 6) / DotProd(xa, xa)))
+					projLen := Length(lProjP)
 					if r.mLimit > projLen { // The miter limit line is past the bevel point,
 						// t is the fraction to scale the line or arc from the bevel point
 						// to the line intersection, so that they abbut the miter limit line.
 						sx2 := xt.Sub(s2)
-						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (pLen(xa) - projLen))
-						lx := pNorm(sx2, t*pLen(sx2)>>tStrokeShift)
+						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (Length(xa) - projLen))
+						lx := ToLength(sx2, t*Length(sx2)>>tStrokeShift)
 						s2p := xt.Sub(lx)
 						_, _, ps2, ds2 := strokeArc(ra, ct, s1, xt, clockwise, 0, t, ra.Line)
 						// calc gap center as pt where -lnorm and line perp to midcoord
 						midP := s2p.Add(ps2).Mul(fixed.Int26_6(1 << 5)) // midpoint
-						midLine := pRot90CW(midP.Sub(ps2))
+						midLine := turnStarboard90(midP.Sub(ps2))
 						if midLine.X*midLine.X+midLine.Y*midLine.Y > epsilonFixed { // if midline is zero, CalcIntersect is invalid
 							ap := CalcIntersect(midP, midLine.Add(midP), s2p, s2p.Sub(p.LNorm))
-							gLen := pLen(ap.Sub(ps2))
+							gLen := Length(ap.Sub(ps2))
 							if clockwise {
-								ds2 = pNeg(ds2)
+								ds2 = Invert(ds2)
 							}
-							r.JoinGap(ra, ap, pNorm(pRot90CW(ds2), gLen), pNorm(pRot90CCW(p.LTan), gLen))
+							r.JoinGap(ra, ap, ToLength(turnStarboard90(ds2), gLen), ToLength(turnPort90(p.LTan), gLen))
 						}
 						ra.Line(s2)
 						return
@@ -416,7 +418,7 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 				ray1, ray2 = xt.Sub(cl), s2.Sub(cl)
 				clockwiseL := ray1.X*ray2.Y > ray1.Y*ray2.X
 
-				if pLen(p.P.Sub(xt)) < r.mLimit { // within miter limit
+				if Length(p.P.Sub(xt)) < r.mLimit { // within miter limit
 					strokeArc(ra, ct, s1, xt, clockwiseT, 0, 0, ra.Line)
 					strokeArc(ra, cl, xt, s2, clockwiseL, 0, 0, ra.Line)
 					ra.Line(s2)
@@ -426,27 +428,27 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 				if r.JoinMode == ArcClip { // Scale bevel points towards xt, and call gap func
 					xa := xt.Sub(p.P)
 					//Projection of lNorm onto xa
-					lProjP := xa.Mul(fixed.Int26_6((pDot(xa, p.LNorm) << 6) / pDot(xa, xa)))
-					projLen := pLen(lProjP)
+					lProjP := xa.Mul(fixed.Int26_6((DotProd(xa, p.LNorm) << 6) / DotProd(xa, xa)))
+					projLen := Length(lProjP)
 					if r.mLimit > projLen { // The miter limit line is past the bevel point,
 						// t is the fraction to scale the line or arc from the bevel point
 						// to the line intersection, so that they abbut the miter limit line.
-						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (pLen(xa) - projLen))
+						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (Length(xa) - projLen))
 						_, _, ps1, ds1 := strokeArc(ra, ct, s1, xt, clockwiseT, 0, t, r.Filler.Line)
 						ps2, ds2, fs2, _ := strokeArc(ra, cl, xt, s2, clockwiseL, t, 0, ra.Start)
 						midP := ps1.Add(ps2).Mul(fixed.Int26_6(1 << 5)) // midpoint
-						midLine := pRot90CW(midP.Sub(ps1))
+						midLine := turnStarboard90(midP.Sub(ps1))
 						ra.Start(ps1)
 						if midLine.X*midLine.X+midLine.Y*midLine.Y > epsilonFixed { // if midline is zero, CalcIntersect is invalid
 							if clockwiseT {
-								ds1 = pNeg(ds1)
+								ds1 = Invert(ds1)
 							}
 							if clockwiseL {
-								ds2 = pNeg(ds2)
+								ds2 = Invert(ds2)
 							}
-							ap := CalcIntersect(midP, midLine.Add(midP), ps2, ps2.Sub(pRot90CW(ds2)))
-							gLen := pLen(ap.Sub(ps2))
-							r.JoinGap(ra, ap, pNorm(pRot90CW(ds1), gLen), pNorm(pRot90CW(ds2), gLen))
+							ap := CalcIntersect(midP, midLine.Add(midP), ps2, ps2.Sub(turnStarboard90(ds2)))
+							gLen := Length(ap.Sub(ps2))
+							r.JoinGap(ra, ap, ToLength(turnStarboard90(ds1), gLen), ToLength(turnStarboard90(ds2), gLen))
 						}
 						ra.Line(ps2)
 						ra.Start(fs2)
@@ -494,7 +496,7 @@ func (s *Stroker) Stop(isClosed bool) {
 		r.Start(a.Add(s.ln))
 		r.Line(s.leadPoint.P.Add(s.leadPoint.TNorm))
 		s.CapL(r, s.leadPoint.P, s.leadPoint.TNorm)
-		s.CapT(r, s.firstP.P, pNeg(s.firstP.LNorm))
+		s.CapT(r, s.firstP.P, Invert(s.firstP.LNorm))
 	}
 	s.inStroke = false
 }
@@ -510,7 +512,7 @@ func (r *Stroker) CubeBezier(b, c, d fixed.Point26_6) {
 }
 
 // quadBezierf calcs end curvature of beziers
-func (r *Stroker) quadBezierf(s Rasterizer, b, c fixed.Point26_6) {
+func (r *Stroker) quadBezierf(s Rasterx, b, c fixed.Point26_6) {
 	r.trailPoint = r.leadPoint
 	r.CalcEndCurvature(r.a, b, c, c, b, r.a, fixed.Int52_12(2<<12), doCalcCurvature(s))
 	r.QuadBezierF(s, b, c)
@@ -519,7 +521,7 @@ func (r *Stroker) quadBezierf(s Rasterizer, b, c fixed.Point26_6) {
 
 // doCalcCurvature determines if calculation of the end curvature is required
 // depending on the raster type and JoinMode
-func doCalcCurvature(r Rasterizer) bool {
+func doCalcCurvature(r Rasterx) bool {
 	switch q := r.(type) {
 	case *Filler:
 		return false // never for filler
@@ -532,7 +534,7 @@ func doCalcCurvature(r Rasterizer) bool {
 	}
 }
 
-func (r *Stroker) cubeBezierf(sgm Rasterizer, b, c, d fixed.Point26_6) {
+func (r *Stroker) cubeBezierf(sgm Rasterx, b, c, d fixed.Point26_6) {
 	if (r.a == b && c == d) || (r.a == b && b == c) || (c == b && d == c) {
 		sgm.Line(d)
 		return
@@ -561,7 +563,7 @@ func (r *Stroker) Line(b fixed.Point26_6) {
 }
 
 //LineSeg is called by both the Stroker and Dasher
-func (r *Stroker) LineSeg(sgm Rasterizer, b fixed.Point26_6) {
+func (r *Stroker) LineSeg(sgm Rasterx, b fixed.Point26_6) {
 	r.trailPoint = r.leadPoint
 	ba := b.Sub(r.a)
 	if ba.X == 0 && ba.Y == 0 { // a == b, line is degenerate
@@ -571,7 +573,7 @@ func (r *Stroker) LineSeg(sgm Rasterizer, b fixed.Point26_6) {
 			ba = fixed.Point26_6{1 << 6, 0}
 		}
 	}
-	bnorm := pRot90CCW(pNorm(ba, r.u))
+	bnorm := turnPort90(ToLength(ba, r.u))
 	r.trailPoint.LTan = ba
 	r.leadPoint.TTan = ba
 	r.trailPoint.LNorm = bnorm
@@ -597,7 +599,7 @@ func (r *Stroker) lineF(b fixed.Point26_6) {
 	if b == r.leadPoint.P { // End of segment
 		bnorm = r.leadPoint.TNorm // Use more accurate leadPoint tangent
 	} else {
-		bnorm = pRot90CCW(pNorm(b.Sub(a), r.u)) // Intra segment normal
+		bnorm = turnPort90(ToLength(b.Sub(a), r.u)) // Intra segment normal
 	}
 	ra := &r.Filler
 	ra.Start(b.Sub(bnorm))
@@ -623,8 +625,8 @@ func (r *Stroker) CalcEndCurvature(p0, p1, p2, q0, q1, q2 fixed.Point26_6,
 	r.leadPoint.P = q0
 	r.trailPoint.LTan = p1.Sub(p0)
 	r.leadPoint.TTan = q0.Sub(q1)
-	r.trailPoint.LNorm = pRot90CCW(pNorm(r.trailPoint.LTan, r.u))
-	r.leadPoint.TNorm = pRot90CCW(pNorm(r.leadPoint.TTan, r.u))
+	r.trailPoint.LNorm = turnPort90(ToLength(r.trailPoint.LTan, r.u))
+	r.leadPoint.TNorm = turnPort90(ToLength(r.leadPoint.TTan, r.u))
 	if calcRadCuve {
 		r.trailPoint.RL = RadCurvature(p0, p1, p2, dm)
 		r.leadPoint.RT = -RadCurvature(q0, q1, q2, dm)

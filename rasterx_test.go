@@ -1,8 +1,4 @@
 // Copyright 2018 by the rasterx Authors. All rights reserved.
-// Use of this source code is governed by your choice of either the
-// FreeType License or the GNU General Public License version 2 (or
-// any later version), both of which can be found in the LICENSE file.
-//_
 // Created 2018 by S.R.Wiley
 package rasterx_test
 
@@ -77,6 +73,44 @@ func GetTestPath() (testPath Path) {
 	return
 }
 
+var (
+	p         = GetTestPath()
+	wx, wy    = 128, 128
+	img       = image.NewRGBA(image.Rect(0, 0, wx, wy))
+	src       = image.NewUniform(color.NRGBA{0, 0, 255, 255})
+	scannerGV = NewScannerGV(wx, wy, img, img.Bounds(), src, image.Point{0, 0})
+)
+
+func BenchmarkScanGV(b *testing.B) {
+	src.C = color.NRGBA{0, 0, 255, 255}
+	f := NewFiller(wx, wy, scannerGV)
+	p.AddTo(f)
+	for i := 0; i < b.N; i++ {
+		f.Draw()
+	}
+}
+
+func BenchmarkFillGV(b *testing.B) {
+	src.C = color.NRGBA{0, 0, 255, 255}
+	f := NewFiller(wx, wy, scannerGV)
+	for i := 0; i < b.N; i++ {
+		p.AddTo(f)
+		f.Draw()
+		f.Clear()
+	}
+}
+
+func BenchmarkDashGV(b *testing.B) {
+	src.C = color.NRGBA{0, 0, 255, 255}
+	d := NewDasher(wx, wy, scannerGV)
+	d.SetStroke(10*64, 4*64, RoundCap, nil, RoundGap, ArcClip, []float64{33, 12}, 0)
+	for i := 0; i < b.N; i++ {
+		p.AddTo(d)
+		d.Draw()
+		d.Clear()
+	}
+}
+
 func SaveToPngFile(filePath string, m image.Image) error {
 	// Create the file
 	f, err := os.Create(filePath)
@@ -100,44 +134,36 @@ func SaveToPngFile(filePath string, m image.Image) error {
 
 // TestMultiFunction tests a Dasher's ability to function
 // as a filler, stroker, and dasher by invoking the corresponding anonymous structs
-func TestMultiFunction(t *testing.T) {
-	wx, wy := 512, 512
+func TestMultiFunctionGV(t *testing.T) {
 
-	// Create an RGBA image and a painter for the image.
-	img := image.NewRGBA(image.Rect(0, 0, wx, wy))
-	painter := NewRGBAPainter(img)
-
-	// Create a new Dasher of given widht and height.
-	// Dasher statisfies the Rasterizer interface, as do
-	// the anonymous Stroker and Filler structs in the Dasher.
-	d := NewDasher(wx, wy)
-	// Set the values for the stroking and dashing.
+	src.C = color.NRGBA{0, 0, 255, 255}
+	d := NewDasher(wx, wy, scannerGV)
 	d.SetStroke(10*64, 4*64, RoundCap, nil, RoundGap, ArcClip, []float64{33, 12}, 0)
 	// p is in the shape of a capital Q
 	p := GetTestPath()
 
 	f := &d.Filler // This is the anon Filler in the Dasher. It also satisfies
 	// the Rasterizer interface, and will only perform a fill on the path.
+
 	p.AddTo(f)
-	painter.SetColor(color.NRGBA{0, 0, 255, 255})
-	f.Rasterize(painter)
+	f.Draw()
 	f.Clear()
 
+	src.C = color.NRGBA{240, 124, 0, 255}
 	s := &d.Stroker // This is the anon Stroke in the Dasher. It also satisfies
 	// the Rasterizer interface, but will perform a fill on the path.
 	p.AddTo(s)
-	painter.SetColor(color.NRGBA{255, 255, 0, 255})
-	s.Rasterize(painter)
+	s.Draw()
 	s.Clear()
 
 	// Now lets use the Dasher itself; it will perform a dashed stroke if dashes are set
 	// in the SetStroke method.
+	src.C = color.NRGBA{255, 0, 0, 255}
 	p.AddTo(d)
-	painter.SetColor(color.NRGBA{0, 255, 0, 255})
-	d.Rasterize(painter)
+	d.Draw()
 	d.Clear()
 
-	err := SaveToPngFile("testdata/tmf.png", img)
+	err := SaveToPngFile("testdata/tmfGV.png", img)
 	if err != nil {
 		t.Error(err)
 	}
@@ -145,77 +171,77 @@ func TestMultiFunction(t *testing.T) {
 
 // TestStandAloneFunction tests a filler, stroker and dasher, each
 // initialized seperately.
-func TestStandAloneFunction(t *testing.T) {
-	wx, wy := 512, 512
+//func TestStandAloneFunction(t *testing.T) {
+//	wx, wy := 512, 512
 
-	// Create an RGBA image and a painter for the image.
-	img := image.NewRGBA(image.Rect(0, 0, wx, wy))
-	painter := NewRGBAPainter(img)
+//	// Create an RGBA image and a painter for the image.
+//	img := image.NewRGBA(image.Rect(0, 0, wx, wy))
+//	painter := NewRGBAPainter(img)
 
-	p := GetTestPath()
+//	p := GetTestPath()
 
-	f := NewFiller(wx, wy) // A filler can only fill a path
-	p.AddTo(f)
-	painter.SetColor(color.NRGBA{0, 0, 255, 255})
-	f.Rasterize(painter)
+//	f := NewFiller(wx, wy) // A filler can only fill a path
+//	p.AddTo(f)
+//	painter.SetColor(color.NRGBA{0, 0, 255, 255})
+//	f.Rasterize(painter)
 
-	s := NewStroker(wx, wy) // A stroker can fill or stroke a path
-	s.SetStroke(10*64, 4*64, RoundCap, nil, RoundGap, ArcClip)
-	p.AddTo(s)
-	painter.SetColor(color.NRGBA{255, 255, 0, 255})
-	s.Rasterize(painter)
+//	s := NewStroker(wx, wy) // A stroker can fill or stroke a path
+//	s.SetStroke(10*64, 4*64, RoundCap, nil, RoundGap, ArcClip)
+//	p.AddTo(s)
+//	painter.SetColor(color.NRGBA{255, 255, 0, 255})
+//	s.Rasterize(painter)
 
-	// Now lets use the Dasher
-	d := NewDasher(wx, wy) // A dasher can fill or stroke a path or stroke a dashed path
-	// Set the values for the stroking and dashing.
-	d.SetStroke(10*64, 4*64, RoundCap, nil, RoundGap, ArcClip, []float64{33, 12}, 0)
-	p.AddTo(d)
-	painter.SetColor(color.NRGBA{0, 255, 0, 255})
-	d.Rasterize(painter)
+//	// Now lets use the Dasher
+//	d := NewDasher(wx, wy) // A dasher can fill or stroke a path or stroke a dashed path
+//	// Set the values for the stroking and dashing.
+//	d.SetStroke(10*64, 4*64, RoundCap, nil, RoundGap, ArcClip, []float64{33, 12}, 0)
+//	p.AddTo(d)
+//	painter.SetColor(color.NRGBA{0, 255, 0, 255})
+//	d.Rasterize(painter)
 
-	err := SaveToPngFile("testdata/tsaf.png", img)
-	if err != nil {
-		t.Error(err)
-	}
-}
+//	err := SaveToPngFile("testdata/tsaf.png", img)
+//	if err != nil {
+//		t.Error(err)
+//	}
+//}
 
 // TestShiftedMultiFunction tests a Dasher's ability to function
 // as a filler, stroker, and dasher by invoking the corresponding anonymous structs
 // and also test the TransAdder struct's ability to translate and scale the path.
-func TestShiftedMultiFunction(t *testing.T) {
-	wx, wy := 512, 512
-	img := image.NewRGBA(image.Rect(0, 0, wx, wy))
-	painter := NewRGBAPainter(img)
+//func TestShiftedMultiFunction(t *testing.T) {
+//	wx, wy := 512, 512
+//	img := image.NewRGBA(image.Rect(0, 0, wx, wy))
+//	painter := NewRGBAPainter(img)
 
-	d := NewDasher(wx, wy)
-	p := GetTestPath()
-	p.AddTo(&d.Filler) // By passing in the filler rasterizer d will act as a filler
-	painter.SetColor(color.NRGBA{0, 0, 255, 255})
-	d.Rasterize(painter)
-	d.Clear()
+//	d := NewDasher(wx, wy)
+//	p := GetTestPath()
+//	p.AddTo(&d.Filler) // By passing in the filler rasterizer d will act as a filler
+//	painter.SetColor(color.NRGBA{0, 0, 255, 255})
+//	d.Rasterize(painter)
+//	d.Clear()
 
-	// This will shift and scale the path points as they are passed to the Stroker
-	// It statisfies the Adder interface
-	sta := NewTransAdder(&d.Stroker)
+//	// This will shift and scale the path points as they are passed to the Stroker
+//	// It statisfies the Adder interface
+//	sta := NewTransAdder(&d.Stroker)
 
-	painter.SetColor(color.NRGBA{255, 255, 0, 255})
-	d.SetStroke(12*64, 20*64, RoundCap, ButtCap, RoundGap, ArcClip, []float64{33, 12}, 0)
-	sta.TranslateTo(40, 40)
-	p.AddTo(sta)
-	d.Rasterize(painter)
-	d.Clear()
+//	painter.SetColor(color.NRGBA{255, 255, 0, 255})
+//	d.SetStroke(12*64, 20*64, RoundCap, ButtCap, RoundGap, ArcClip, []float64{33, 12}, 0)
+//	sta.TranslateTo(40, 40)
+//	p.AddTo(sta)
+//	d.Rasterize(painter)
+//	d.Clear()
 
-	dta := NewTransAdder(d) // Now it will use the Dashes if any were set by the SetStroke method
-	dta.TranslateTo(150, 80)
-	dta.SetScale(.95, 1.3) // Squish it a little bit
+//	dta := NewTransAdder(d) // Now it will use the Dashes if any were set by the SetStroke method
+//	dta.TranslateTo(150, 80)
+//	dta.SetScale(.95, 1.3) // Squish it a little bit
 
-	painter.SetColor(color.NRGBA{0, 255, 0, 255})
-	p.AddTo(dta)
-	d.Rasterize(painter)
+//	painter.SetColor(color.NRGBA{0, 255, 0, 255})
+//	p.AddTo(dta)
+//	d.Rasterize(painter)
 
-	err := SaveToPngFile("testdata/tsmf.png", img)
-	if err != nil {
-		t.Error(err)
-	}
+//	err := SaveToPngFile("testdata/tsmf.png", img)
+//	if err != nil {
+//		t.Error(err)
+//	}
 
-}
+//}

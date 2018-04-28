@@ -1,7 +1,4 @@
 // Copyright 2017 by the rasterx Authors. All rights reserved.
-// Use of this source code is governed by your choice of either the
-// FreeType License or the GNU General Public License version 2 (or
-// any later version), both of which can be found in the LICENSE file.
 //_
 // created: 2017 by S.R.Wiley
 package rasterx
@@ -16,7 +13,7 @@ type Dasher struct {
 	dashPlace                 int
 	firstDashIsGap, dashIsGap bool
 	deltaDash, DashOffset     fixed.Int26_6
-	sgm                       Rasterizer
+	sgm                       Rasterx
 	// sgm allows us to switch between dashing
 	// and non-dashing rasterizers in the SetStroke function.
 }
@@ -58,17 +55,17 @@ func (r *Dasher) lineF(b fixed.Point26_6) {
 	var bnorm fixed.Point26_6
 	a := r.a // Copy local a since r.a is going to change during stroke operation
 	ba := b.Sub(a)
-	segLen := pLen(ba)
+	segLen := Length(ba)
 	var nlt fixed.Int26_6
 	if b == r.leadPoint.P { // End of segment
 		bnorm = r.leadPoint.TNorm // Use more accurate leadPoint tangent
 	} else {
-		bnorm = pRot90CCW(pNorm(b.Sub(a), r.u)) // Intra segment normal
+		bnorm = turnPort90(ToLength(b.Sub(a), r.u)) // Intra segment normal
 	}
 	for segLen+r.deltaDash > r.Dashes[r.dashPlace] {
 		nl := r.Dashes[r.dashPlace] - r.deltaDash
 		nlt += nl
-		r.dashLineStrokeBit(a.Add(pNorm(ba, nlt)), bnorm, false)
+		r.dashLineStrokeBit(a.Add(ToLength(ba, nlt)), bnorm, false)
 		r.dashIsGap = !r.dashIsGap
 		segLen -= nl
 		r.deltaDash = 0
@@ -134,7 +131,7 @@ func (r *Dasher) Stop(isClosed bool) {
 			r.CapL(ra, r.leadPoint.P, r.leadPoint.TNorm)
 		}
 		if !r.firstDashIsGap {
-			r.CapT(ra, r.firstP.P, pNeg(r.firstP.LNorm))
+			r.CapT(ra, r.firstP.P, Invert(r.firstP.LNorm))
 		}
 	}
 	r.inStroke = false
@@ -156,7 +153,7 @@ func (r *Dasher) dashLineStrokeBit(b, bnorm fixed.Point26_6, dontClose bool) {
 	} else { // Moving from gap to dash
 		if dontClose == false {
 			ra := &r.Filler
-			r.CapT(ra, b, pNeg(bnorm))
+			r.CapT(ra, b, Invert(bnorm))
 		}
 	}
 	r.a = b
@@ -184,10 +181,15 @@ func (r *Dasher) CubeBezier(b, c, d fixed.Point26_6) {
 // A Dasher has all of the capabilities of a Stroker, Filler, and Scanner, plus the ability
 // to stroke curves with solid lines. Use SetStroke to configure with non-default
 // values.
-func NewDasher(width, height int) *Dasher {
+func NewDasher(width, height int, scanner Scanner) *Dasher {
 	r := new(Dasher)
+	if scanner != nil {
+		r.Scanner = scanner
+	} else {
+		r.Scanner = new(ScannerGV)
+	}
 	r.SetBounds(width, height)
-	r.UseNonZeroWinding = true
+	//r.UseNonZeroWinding = true
 	r.SetStroke(1*64, 4*64, ButtCap, nil, FlatGap, MiterClip, nil, 0)
 	r.sgm = &r.Stroker
 	return r

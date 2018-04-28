@@ -1,18 +1,161 @@
 // Copyright 2017 by the rasterx Authors. All rights reserved.
-// Use of this source code is governed by your choice of either the
-// FreeType License or the GNU General Public License version 2 (or
-// any later version), both of which can be found in the LICENSE file.
 //_
 // created: 2/12/2017 by S.R.Wiley
-// geomx adds some additional geometry functions needed by rasterx
+// geomx adds some geometry functions needed by rasterx
 
 package rasterx
 
 import (
+	"fmt"
 	"math"
 
 	"golang.org/x/image/math/fixed"
 )
+
+// Inverts returns the point
+func Invert(v fixed.Point26_6) fixed.Point26_6 {
+	return fixed.Point26_6{-v.X, -v.Y}
+}
+
+// turnStarboard90 returns the vector 90 degrees starboard (right in direction heading)
+func turnStarboard90(v fixed.Point26_6) fixed.Point26_6 {
+	return fixed.Point26_6{-v.Y, v.X}
+}
+
+// turnPort90 returns the vector 90 degrees port (left in direction heading)
+func turnPort90(v fixed.Point26_6) fixed.Point26_6 {
+	return fixed.Point26_6{v.Y, -v.X}
+}
+
+// DotProd returns the inner product of p and q
+func DotProd(p fixed.Point26_6, q fixed.Point26_6) fixed.Int52_12 {
+	return fixed.Int52_12(int64(p.X)*int64(q.X) + int64(p.Y)*int64(q.Y))
+}
+
+// Magnitiude of the point
+func Length(v fixed.Point26_6) fixed.Int26_6 {
+	vx, vy := float64(v.X), float64(v.Y)
+	return fixed.Int26_6(math.Sqrt(vx*vx + vy*vy))
+}
+
+type PathCommand fixed.Int26_6
+
+// Human readable path constants
+const (
+	PathMoveTo PathCommand = iota
+	PathLineTo
+	PathQuadTo
+	PathCubicTo
+	PathClose
+)
+
+// A Path starts with a PathCommand value followed by zero to three fixed
+// int points.
+type Path []fixed.Int26_6
+
+func (p Path) ToSVGPath() string {
+	s := ""
+	for i := 0; i < len(p); {
+		if i != 0 {
+			s += " "
+		}
+		switch PathCommand(p[i]) {
+		case PathMoveTo:
+			s += fmt.Sprintf("M%4.3f,%4.3f", float32(p[i+1])/64, float32(p[i+2])/64)
+			i += 3
+		case PathLineTo:
+			s += fmt.Sprintf("L%4.3f,%4.3f", float32(p[i+1])/64, float32(p[i+2])/64)
+			i += 3
+		case PathQuadTo:
+			s += fmt.Sprintf("Q%4.3f,%4.3f,%4.3f,%4.3f", float32(p[i+1])/64, float32(p[i+2])/64,
+				float32(p[i+3])/64, float32(p[i+4])/64)
+			i += 5
+		case PathCubicTo:
+			s += "C" + fmt.Sprintf("C%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f", float32(p[i+1])/64, float32(p[i+2])/64,
+				float32(p[i+3])/64, float32(p[i+4])/64, float32(p[i+5])/64, float32(p[i+6])/64)
+			i += 7
+		case PathClose:
+			s += "Z"
+			i += 1
+		default:
+			panic("freetype/rasterx: bad pather")
+		}
+	}
+	return s
+}
+
+// String returns a human-readable representation of a Path.
+func (p Path) String() string {
+	return p.ToSVGPath()
+}
+
+// Clears zeros the path slice
+func (p *Path) Clear() {
+	*p = (*p)[:0]
+}
+
+// Start starts a new curve at the given point.
+func (p *Path) Start(a fixed.Point26_6) {
+	*p = append(*p, fixed.Int26_6(PathMoveTo), a.X, a.Y)
+}
+
+// Add1 adds a linear segment to the current curve.
+func (p *Path) Line(b fixed.Point26_6) {
+	*p = append(*p, fixed.Int26_6(PathLineTo), b.X, b.Y)
+}
+
+// Add2 adds a quadratic segment to the current curve.
+func (p *Path) QuadBezier(b, c fixed.Point26_6) {
+	*p = append(*p, fixed.Int26_6(PathQuadTo), b.X, b.Y, c.X, c.Y)
+}
+
+// Add3 adds a cubic segment to the current curve.
+func (p *Path) CubeBezier(b, c, d fixed.Point26_6) {
+	*p = append(*p, fixed.Int26_6(PathCubicTo), b.X, b.Y, c.X, c.Y, d.X, d.Y)
+}
+
+// Close joins the ends of the path
+func (p *Path) Stop(closeLoop bool) {
+	if closeLoop {
+		*p = append(*p, fixed.Int26_6(PathClose))
+	}
+}
+
+// AddPath adds the Path p to q. This bridges the path and adder interface.
+func (p Path) AddTo(q Adder) {
+	for i := 0; i < len(p); {
+		switch PathCommand(p[i]) {
+		case PathMoveTo:
+			q.Start(fixed.Point26_6{p[i+1], p[i+2]})
+			i += 3
+		case PathLineTo:
+			q.Line(fixed.Point26_6{p[i+1], p[i+2]})
+			i += 3
+		case PathQuadTo:
+			q.QuadBezier(fixed.Point26_6{p[i+1], p[i+2]}, fixed.Point26_6{p[i+3], p[i+4]})
+			i += 5
+		case PathCubicTo:
+			q.CubeBezier(fixed.Point26_6{p[i+1], p[i+2]},
+				fixed.Point26_6{p[i+3], p[i+4]}, fixed.Point26_6{p[i+5], p[i+6]})
+			i += 7
+		case PathClose:
+			q.Stop(true)
+			i += 1
+		default:
+			panic("adder geom: bad path")
+		}
+	}
+	q.Stop(false)
+}
+
+func ToLength(p fixed.Point26_6, ln fixed.Int26_6) (q fixed.Point26_6) {
+	if ln == 0 || (p.X == 0 && p.Y == 0) {
+		return
+	}
+	lp := Length(p)
+	q.X, q.Y = p.X*ln/lp, p.Y*ln/lp
+	return
+}
 
 // ClosestPortside returns the closest of p1 or p2 on the port side of the
 // line from the bow to the stern. (port means left side of the direction you are heading)
@@ -34,10 +177,10 @@ func ClosestPortside(bow, stern, p1, p2 fixed.Point26_6, isIntersecting bool) (x
 	case cp1 >= 0 && cp2 < 0:
 		return p1, true
 	default: // both points on port side
-		dirdot := pDot(dir, dir)
+		dirdot := DotProd(dir, dir)
 		// calculate vector rejections of dp1 and dp2 onto dir
-		h1 := dp1.Sub(dir.Mul(fixed.Int26_6((pDot(dp1, dir) << 6) / dirdot)))
-		h2 := dp2.Sub(dir.Mul(fixed.Int26_6((pDot(dp2, dir) << 6) / dirdot)))
+		h1 := dp1.Sub(dir.Mul(fixed.Int26_6((DotProd(dp1, dir) << 6) / dirdot)))
+		h2 := dp2.Sub(dir.Mul(fixed.Int26_6((DotProd(dp2, dir) << 6) / dirdot)))
 		// return point with smallest vector rejection; i.e. closest to dir line
 		if (h1.X*h1.X + h1.Y*h1.Y) > (h2.X*h2.X + h2.Y*h2.Y) {
 			return p2, true
@@ -52,12 +195,12 @@ func ClosestPortside(bow, stern, p1, p2 fixed.Point26_6, isIntersecting bool) (x
 // is left or right (port or starboard) of the curve in the forward direction.
 func RadCurvature(p0, p1, p2 fixed.Point26_6, dm fixed.Int52_12) fixed.Int26_6 {
 	a, b := p2.Sub(p1), p1.Sub(p0)
-	abdot, bbdot := pDot(a, b), pDot(b, b)
+	abdot, bbdot := DotProd(a, b), DotProd(b, b)
 	h := a.Sub(b.Mul(fixed.Int26_6((abdot << 6) / bbdot))) // h is the vector rejection of a onto b
 	if h.X == 0 && h.Y == 0 {                              // points are co-linear
 		return 0
 	}
-	radCurve := fixed.Int26_6((fixed.Int52_12(a.X*a.X+a.Y*a.Y) * dm / fixed.Int52_12(pLen(h)<<6)) >> 6)
+	radCurve := fixed.Int26_6((fixed.Int52_12(a.X*a.X+a.Y*a.Y) * dm / fixed.Int52_12(Length(h)<<6)) >> 6)
 	if a.X*b.Y > b.X*a.Y { // xprod sign
 		return radCurve
 	}
@@ -68,7 +211,7 @@ func RadCurvature(p0, p1, p2 fixed.Point26_6, dm fixed.Int52_12) fixed.Int26_6 {
 // two circles or returns with intersects == false if no such points exist.
 func CircleCircleIntersection(ct, cl fixed.Point26_6, rt, rl fixed.Int26_6) (xt1, xt2 fixed.Point26_6, intersects bool) {
 	dc := cl.Sub(ct)
-	d := pLen(dc)
+	d := Length(dc)
 
 	// Check for solvability.
 	if d > (rt + rl) {
