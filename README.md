@@ -15,9 +15,9 @@ Rasterx is a golang rasterizer that implements path stroking functions capable o
 
 The above image shows the effect of using different join modes for a stroked curving path. The top stroked path uses miter (green) or arc (red, yellow, orange) join functions with high miter limit. The middle and lower path shows the effect of using the miter-clip and arc-clip joins, repectively, with different miter-limit values. The black chevrons at the top show different cap and gap functions.
 
-## Scanner
+## Scanner interface
 
-Rasterx takes the path description of lines, bezier curves, and drawing parameters, and converts them into a set of straight line segments before converting the lines to a raster version using some method of antialiasing. Rasterx abstracts this last step through the Scanner interface. There are two different structs that satisfy the Scanner interface; ScannerGV and ScannerFT. ScannerGV wraps the rasterizer found in the golang.org/x/image/vector package. ScannerFT contains a modified version of the antialiaser found in the [golang freetype](https://github.com/golang/freetype) translation. These use different functions to connect an image to the antialiaser. ScannerFT uses a Pleaseainter, and ScannerGV uses the vector Draw method with a source image and uses the path as an alpha mask. Please see the test files for examples. At this time, the ScannerFT is a bit faster as compared to ScannerGV for larger and less complicated images, while ScannerGV can be faster for smaller and more complex images. Also ScannerGV does not allow for using the even-odd winding rule, which is something the SVG specification uses. Since ScannerFT is subject to freetype style licensing rules, it lives [here] in a separate repository and must be imported into your project seperately. ScannerGV is included in the rasterx package, and has more go-friendly licensing. 
+Rasterx takes the path description of lines, bezier curves, and drawing parameters, and converts them into a set of straight line segments before converting the lines to a raster version using some method of antialiasing. Rasterx abstracts this last step through the Scanner interface. There are two different structs that satisfy the Scanner interface; ScannerGV and ScannerFT. ScannerGV wraps the rasterizer found in the golang.org/x/image/vector package. ScannerFT contains a modified version of the antialiaser found in the [golang freetype](https://github.com/golang/freetype) translation. These use different functions to connect an image to the antialiaser. ScannerFT uses a Painter, and ScannerGV uses the vector Draw method with a source image and uses the path as an alpha mask. Please see the test files for examples. At this time, the ScannerFT is a bit faster as compared to ScannerGV for larger and less complicated images, while ScannerGV can be faster for smaller and more complex images. Also ScannerGV does not allow for using the even-odd winding rule, which is something the SVG specification uses. Since ScannerFT is subject to freetype style licensing rules, it lives [here] in a separate repository and must be imported into your project seperately. ScannerGV is included in the rasterx package, and has more go-friendly licensing. 
 
 Below are the results of some benchmarks performed on a sample shape (the letter Q ). The first test is the time it takes to scan the image after all the curves have been flattened. The second test is the time it takes to flatten, and scan a simple filled image. The last test is the time it takes to flatten a stroked and dashed outline of the shape and scan it. Results for three different image sizes are shown.
 
@@ -37,7 +37,7 @@ BenchmarkDashFT-16    	    1000     2063797 ns/op
 Test                        Rep       Time
 BenchmarkScanGV-16          2000     1188452 ns/op
 BenchmarkFillGV-16          1000     1277268 ns/op
-BenchmarkDashGV-16          500    	 2238169 ns/op
+BenchmarkDashGV-16          500      2238169 ns/op
 
 BenchmarkScanFT-16    	    5000      290685 ns/op
 BenchmarkFillFT-16    	    3000      446329 ns/op
