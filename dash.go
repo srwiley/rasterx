@@ -189,7 +189,7 @@ func NewDasher(width, height int, scanner Scanner) *Dasher {
 		r.Scanner = new(ScannerGV)
 	}
 	r.SetBounds(width, height)
-	//r.UseNonZeroWinding = true
+	r.SetWinding(true)
 	r.SetStroke(1*64, 4*64, ButtCap, nil, FlatGap, MiterClip, nil, 0)
 	r.sgm = &r.Stroker
 	return r
