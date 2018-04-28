@@ -76,7 +76,7 @@ func NewStroker(width, height int, scanner Scanner) *Stroker {
 	}
 	r.SetBounds(width, height)
 	//Defaults for stroking
-	//r.UseNonZeroWinding = true
+	r.SetWinding(true)
 	r.u = 2 << 6
 	r.mLimit = 4 << 6
 	r.JoinMode = MiterClip
