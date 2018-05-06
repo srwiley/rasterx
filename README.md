@@ -65,3 +65,20 @@ Eash of the Filler, Dasher, and Stroker can function on their own and each imple
 filler := &dasher.Filler
 ```
 Now filler is a filling rasterizer. Please see rasterx_test.go for examples.
+
+
+### Non-standard library dependencies
+rasterx requires the following imports which are not included in the go standard library:
+
+* golang.org/x/image/math/fixed
+* golang.org/x/image/vector
+
+These can be included in your gopath by the following 'get' commands:
+
+* "go get golang.org/x/image/vector"
+* "go get golang.org/x/image/math/fixed"
+
+If you want to use the freetype style antialiaser, 'go get' or clone into your workspace the scanFT package:
+
+* github.com/srwiley/scanFT 
+
