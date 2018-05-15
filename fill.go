@@ -11,15 +11,13 @@ import (
 )
 
 type (
-	ColorFunc func(x, y int) color.Color
 
 	Scanner interface {
 		Start(a fixed.Point26_6)
 		Line(b fixed.Point26_6)
 		Draw()
-		GetPathExtent() fixed.Rectangle26_6
 		SetBounds(w, h int)
-		SetColor(color interface{})
+		SetColor(color.Color)
 		SetWinding(useNonZeroWinding bool)
 		Clear()
 	}
