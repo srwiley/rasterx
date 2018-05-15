@@ -75,7 +75,7 @@ func GetTestPath() (testPath Path) {
 
 var (
 	p         = GetTestPath()
-	wx, wy    = 128, 128
+	wx, wy    = 512, 512
 	img       = image.NewRGBA(image.Rect(0, 0, wx, wy))
 	src       = image.NewUniform(color.NRGBA{0, 0, 255, 255})
 	scannerGV = NewScannerGV(wx, wy, img, img.Bounds(), src, image.Point{0, 0})
