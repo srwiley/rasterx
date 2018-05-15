@@ -84,7 +84,7 @@ func (p Path) ToSVGPath() string {
 	return s
 }
 
-// String returns a human-readable representation of a Path.
+// String returns a readable representation of a Path.
 func (p Path) String() string {
 	return p.ToSVGPath()
 }
@@ -126,6 +126,7 @@ func (p Path) AddTo(q Adder) {
 	for i := 0; i < len(p); {
 		switch PathCommand(p[i]) {
 		case PathMoveTo:
+			q.Stop(false) // Fixes issues #1 by described by Djadala; implict close if currently in path.
 			q.Start(fixed.Point26_6{p[i+1], p[i+2]})
 			i += 3
 		case PathLineTo:

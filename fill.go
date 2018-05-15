@@ -11,12 +11,15 @@ import (
 )
 
 type (
+	ColorFunc func(x, y int) color.Color
+
 	Scanner interface {
 		Start(a fixed.Point26_6)
 		Line(b fixed.Point26_6)
 		Draw()
+		GetPathExtent() fixed.Rectangle26_6
 		SetBounds(w, h int)
-		SetColor(color.Color)
+		SetColor(color interface{})
 		SetWinding(useNonZeroWinding bool)
 		Clear()
 	}
@@ -222,6 +225,12 @@ func (r *Filler) CubeBezierF(sgm Rasterx, b, c, d fixed.Point26_6) {
 		func(ex, ey float32) {
 			sgm.lineF(fixed.Point26_6{fixed.Int26_6(ex), fixed.Int26_6(ey)})
 		})
+}
+
+func (r *Filler) Clear() {
+	r.a = fixed.Point26_6{}
+	r.first = r.a
+	r.Scanner.Clear()
 }
 
 // SetBounds sets the maximum width and height of the rasterized image and
