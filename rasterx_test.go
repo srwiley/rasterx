@@ -48,7 +48,7 @@ func GetTestPath() (testPath Path) {
 	//Q173.42,216.66,210.08,222.97
 	testPath.QuadBezier(toFixedP(173.42, 216.66), toFixedP(210.08, 222.97))
 	//z
-	testPath.Stop(true)
+	testPath.Stop(false)
 	//M162.22,109.69 M162.22,109.69
 	testPath.Start(toFixedP(162.22, 109.69))
 	//Q162.22,70.11,145.61,48.55
@@ -68,7 +68,7 @@ func GetTestPath() (testPath Path) {
 	//Q162.22,147.41,162.22,109.69
 	testPath.QuadBezier(toFixedP(162.22, 147.41), toFixedP(162.22, 109.69))
 	//z
-	testPath.Stop(true)
+	testPath.Stop(false)
 
 	return
 }
@@ -78,7 +78,7 @@ var (
 	wx, wy    = 512, 512
 	img       = image.NewRGBA(image.Rect(0, 0, wx, wy))
 	src       = image.NewUniform(color.NRGBA{0, 0, 255, 255})
-	scannerGV = NewScannerGV(wx, wy, img, img.Bounds(), src, image.Point{0, 0})
+	scannerGV = NewScannerGV(wx, wy, img, img.Bounds())
 )
 
 func BenchmarkScanGV(b *testing.B) {

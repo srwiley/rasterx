@@ -246,7 +246,6 @@ func (s *Stroker) Joiner(p C2Point) {
 // handle joins between the given C2Point point p, and the end of the line.
 func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 	ra := &r.Filler
-
 	s1, s2 := p.P.Add(p.TNorm), p.P.Add(p.LNorm) // Bevel points for top leading and trailing
 	ra.Start(s1)
 	if crossProd > -epsilonFixed*epsilonFixed { // Almost co-linear or convex

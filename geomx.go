@@ -252,15 +252,26 @@ func CalcIntersect(a1, a2, b1, b2 fixed.Point26_6) (x fixed.Point26_6) {
 // Returns intersects == false if no solution is possible. If two
 // solutions are possible, the point closest to s2 is returned
 func RayCircleIntersection(s1, s2, c fixed.Point26_6, r fixed.Int26_6) (x fixed.Point26_6, intersects bool) {
-	n := float64(s2.X - c.X) // Calculating using 64* rather than divide
-	m := float64(s2.Y - c.Y)
+	fx, fy, intersects := RayCircleIntersectionF(float64(s1.X), float64(s1.Y),
+		float64(s2.X), float64(s2.Y), float64(c.X), float64(c.Y), float64(r))
+	return fixed.Point26_6{fixed.Int26_6(fx),
+		fixed.Int26_6(fy)}, intersects
 
-	e := float64(s2.X - s1.X)
-	d := float64(s2.Y - s1.Y)
+}
 
-	f := float64(r)
+// RayCircleIntersection calculates the points of intersection of
+// a ray starting at s2 passing through s1 and a circle in fixed point.
+// Returns intersects == false if no solution is possible. If two
+// solutions are possible, the point closest to s2 is returned
+func RayCircleIntersectionF(s1X, s1Y, s2X, s2Y, cX, cY, r float64) (x, y float64, intersects bool) {
+	n := s2X - cX // Calculating using 64* rather than divide
+	m := s2Y - cY
+
+	e := s2X - s1X
+	d := s2Y - s1Y
+
 	// Quadratic normal form coefficients
-	A, B, C := e*e+d*d, -2*(e*n+m*d), n*n+m*m-f*f
+	A, B, C := e*e+d*d, -2*(e*n+m*d), n*n+m*m-r*r
 
 	D := B*B - 4*A*C
 
@@ -284,7 +295,5 @@ func RayCircleIntersection(s1, s2, c fixed.Point26_6, r fixed.Int26_6) (x fixed.
 	default: // Neither solution is on the ray
 		return
 	}
-	return fixed.Point26_6{fixed.Int26_6((n - e*t1)) + c.X,
-		fixed.Int26_6((m - d*t1)) + c.Y}, true
-
+	return (n - e*t1) + cX, (m - d*t1) + cY, true
 }
