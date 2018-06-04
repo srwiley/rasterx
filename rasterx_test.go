@@ -247,12 +247,12 @@ func TestShapes(t *testing.T) {
 	)
 
 	scannerGV.SetColor(colornames.Blueviolet)
-	AddElipse(240, 200, 140, 180, 0, f)
+	AddEllipse(240, 200, 140, 180, 0, f)
 	f.Draw()
 	f.Clear()
 
 	scannerGV.SetColor(colornames.Darkseagreen)
-	AddElipse(240, 200, 40, 180, 45, f)
+	AddEllipse(240, 200, 40, 180, 45, f)
 	f.Draw()
 	f.Clear()
 

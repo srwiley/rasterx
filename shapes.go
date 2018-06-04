@@ -21,12 +21,12 @@ func ToFixedP(x, y float64) (p fixed.Point26_6) {
 }
 
 func AddCircle(cx, cy, r float64, p Adder) {
-	AddElipse(cx, cy, r, r, 0, p)
+	AddEllipse(cx, cy, r, r, 0, p)
 }
 
-// AddElipse adds an elipse with center at cx,cy, with the indicated
+// AddEllipse adds an elipse with center at cx,cy, with the indicated
 // x and y radius, (rx, ry), rotated around the center by rot degrees.
-func AddElipse(cx, cy, rx, ry, rot float64, p Adder) {
+func AddEllipse(cx, cy, rx, ry, rot float64, p Adder) {
 	rotRads := rot * math.Pi / 180
 	px, py := Identity.
 		Translate(cx, cy).Rotate(rotRads).Translate(-cx, -cy).Transform(cx+rx, cy)
