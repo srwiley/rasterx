@@ -121,7 +121,7 @@ func (p *Path) Stop(closeLoop bool) {
 	}
 }
 
-// AddPath adds the Path p to q. This bridges the path and adder interface.
+// AddPath adds the Path p to q.
 func (p Path) AddTo(q Adder) {
 	for i := 0; i < len(p); {
 		switch PathCommand(p[i]) {
@@ -143,7 +143,7 @@ func (p Path) AddTo(q Adder) {
 			q.Stop(true)
 			i += 1
 		default:
-			panic("adder geom: bad path")
+			panic("AddTo: bad path")
 		}
 	}
 	q.Stop(false)
