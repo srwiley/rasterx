@@ -4,6 +4,7 @@
 package rasterx
 
 import (
+	"image"
 	"image/color"
 	"math"
 
@@ -22,6 +23,11 @@ type (
 		SetColor(color interface{})
 		SetWinding(useNonZeroWinding bool)
 		Clear()
+
+		// SetClip sets an optional clipping rectangle to restrict rendering
+		// only to that region -- if size is 0 then ignored (set to image.ZR
+		// to clear)
+		SetClip(rect image.Rectangle)
 	}
 
 	Adder interface {

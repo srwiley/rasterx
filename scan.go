@@ -16,6 +16,10 @@ import (
 	"golang.org/x/image/vector"
 )
 
+func (c *ColorFuncImage) At(x, y int) color.Color {
+	return c.colorFunc(x, y)
+}
+
 type (
 	ColorFuncImage struct {
 		image.Uniform
@@ -28,19 +32,31 @@ type (
 		//a, first fixed.Point26_6
 		Dest                   *image.RGBA
 		Targ                   image.Rectangle
-		colFImage              *ColorFuncImage
+		clipImage              *ClipImage
 		Source                 image.Image
 		Offset                 image.Point
 		minX, minY, maxX, maxY fixed.Int26_6 // keep track of bounds
 	}
 )
 
+type ClipImage struct {
+	ColorFuncImage
+	clip image.Rectangle
+}
+
+var noApha = color.RGBA{0, 0, 0, 0}
+
 func (s *ScannerGV) GetPathExtent() fixed.Rectangle26_6 {
 	return fixed.Rectangle26_6{fixed.Point26_6{s.minX, s.minY}, fixed.Point26_6{s.maxX, s.maxY}}
 }
 
-func (c *ColorFuncImage) At(x, y int) color.Color {
-	return c.colorFunc(x, y)
+func (c *ClipImage) At(x, y int) color.Color {
+	p := image.Point{x, y}
+	if p.In(c.clip) {
+		return c.ColorFuncImage.At(x, y)
+	} else {
+		return noApha
+	}
 }
 
 func (s *ScannerGV) SetWinding(useNonZeroWinding bool) {
@@ -50,11 +66,33 @@ func (s *ScannerGV) SetWinding(useNonZeroWinding bool) {
 func (s *ScannerGV) SetColor(clr interface{}) {
 	switch c := clr.(type) {
 	case color.Color:
-		s.Source = &s.colFImage.Uniform
-		s.colFImage.Uniform.C = c
+		s.clipImage.ColorFuncImage.Uniform.C = c
+		if s.clipImage.clip == image.ZR {
+			s.Source = &s.clipImage.ColorFuncImage.Uniform
+		} else {
+			s.clipImage.ColorFuncImage.colorFunc = func(x, y int) color.Color {
+				return c
+			}
+			s.Source = s.clipImage
+		}
 	case ColorFunc:
-		s.Source = s.colFImage
-		s.colFImage.colorFunc = c
+		s.clipImage.ColorFuncImage.colorFunc = c
+		if s.clipImage.clip == image.ZR {
+			s.Source = &s.clipImage.ColorFuncImage
+		} else {
+			s.Source = s.clipImage
+		}
+	}
+}
+
+// SetClip sets an optional clipping rectangle to restrict rendering only to
+// that region -- if size is 0 then ignored (set to image.ZR to clear)
+func (s *ScannerGV) SetClip(rect image.Rectangle) {
+	s.clipImage.clip = rect
+	if s.Source == &s.clipImage.ColorFuncImage.Uniform {
+		s.SetColor(s.clipImage.ColorFuncImage.Uniform.C)
+	} else {
+		s.SetColor(s.clipImage.ColorFuncImage.colorFunc)
 	}
 }
 
@@ -124,9 +162,9 @@ func NewScannerGV(width, height int, dest *image.RGBA,
 	s.SetBounds(width, height)
 	s.Dest = dest
 	s.Targ = targ
-	s.colFImage = &ColorFuncImage{}
-	s.colFImage.Uniform.C = &color.RGBA{255, 0, 0, 255}
-	s.Source = &s.colFImage.Uniform
+	s.clipImage = &ClipImage{}
+	s.clipImage.ColorFuncImage.Uniform.C = &color.RGBA{255, 0, 0, 255}
+	s.Source = &s.clipImage.ColorFuncImage.Uniform
 	s.Offset = image.Point{0, 0}
 	return s
 }

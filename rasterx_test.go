@@ -271,6 +271,14 @@ func TestShapes(t *testing.T) {
 	f.Draw()
 	f.Clear()
 
+	scannerGV.SetColor(colornames.Lemonchiffon)
+	scannerGV.SetClip(image.Rect(65, 65, 95, 95))
+	AddCircle(80, 80, 50, f)
+	f.Draw()
+	f.Clear()
+
+	scannerGV.SetClip(image.ZR)
+
 	scannerGV.SetColor(colornames.Firebrick)
 	AddRect(370, 370, 400, 500, 15, f)
 	f.Draw()
@@ -320,9 +328,22 @@ func TestGradient(t *testing.T) {
 	f := &d.Filler // This is the anon Filler in the Dasher. It also satisfies
 	// the Rasterizer interface, and will only perform a fill on the path.
 
-	scannerGV.SetColor(radialGradient.GetColorFunction(1))
 	offsetPath := &MatrixAdder{Adder: f, M: Identity.Translate(180, 180)}
 
+	p.AddTo(offsetPath)
+
+	scannerGV.SetColor(radialGradient.GetColorFunction(1))
+	f.Draw()
+	f.Clear()
+
+	scannerGV.SetClip(image.Rect(420, 350, 460, 400))
+	offsetPath.M = Identity.Translate(340, 180)
+	scannerGV.SetColor(radialGradient.GetColorFunction(1))
+	p.AddTo(offsetPath)
+	f.Draw()
+	f.Clear()
+	scannerGV.SetClip(image.ZR)
+	offsetPath.M = Identity.Translate(180, 340)
 	p.AddTo(offsetPath)
 	f.Draw()
 	f.Clear()
