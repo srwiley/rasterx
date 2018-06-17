@@ -4,6 +4,7 @@
 package rasterx
 
 import (
+	"image"
 	"image/color"
 	"math"
 	"sort"
@@ -34,7 +35,7 @@ type (
 
 	Gradient struct {
 		Points   [5]float64
-		Stops    []GradStop
+		Stops    []*GradStop
 		Bounds   struct{ X, Y, W, H float64 }
 		Matrix   Matrix2D
 		Spread   SpreadMethod
@@ -77,7 +78,7 @@ func (g *Gradient) tColor(t, opacity float64) color.Color {
 	}
 	switch g.Spread {
 	case RepeatSpread:
-		var s1, s2 GradStop
+		var s1, s2 *GradStop
 		switch place {
 		case 0, d:
 			s1, s2 = g.Stops[d-1], g.Stops[0]
@@ -123,7 +124,7 @@ func (g *Gradient) tColor(t, opacity float64) color.Color {
 	}
 }
 
-func (g *Gradient) blendStops(t, opacity float64, s1, s2 GradStop, flip bool) color.Color {
+func (g *Gradient) blendStops(t, opacity float64, s1, s2 *GradStop, flip bool) color.Color {
 	s1off := s1.Offset
 	if s1.Offset > s2.Offset && !flip { // happens in repeat spread mode
 		s1off -= 1
@@ -241,4 +242,13 @@ func (g *Gradient) GetColorFunction(opacity float64) interface{} {
 			return g.tColor((dx*dfx+dy*dfy)/d, opacity)
 		})
 	}
+}
+
+// SetBounds sets bounds of the gradient from standard image Rectangle
+func (g *Gradient) SetBounds(bounds image.Rectangle) {
+	g.Bounds.X = float64(bounds.Min.X)
+	g.Bounds.Y = float64(bounds.Min.Y)
+	sz := bounds.Size()
+	g.Bounds.W = float64(sz.X)
+	g.Bounds.H = float64(sz.Y)
 }
