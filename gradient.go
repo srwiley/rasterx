@@ -148,7 +148,7 @@ func (g *Gradient) blendStops(t, opacity float64, s1, s2 GradStop, flip bool) co
 		0xFF}, (s1.Opacity*(1-tp)+s2.Opacity*tp)*opacity)
 }
 
-func (g *Gradient) GetColorFunction(opacity float64) interface{} {
+func (g *Gradient) GetColorFunction(opacity float64, objMatrix Matrix2D) interface{} {
 	switch len(g.Stops) {
 	case 0:
 		return ApplyOpacity(color.RGBA{255, 0, 255, 255}, opacity) // default error color for gradient w/o stops.
@@ -167,27 +167,34 @@ func (g *Gradient) GetColorFunction(opacity float64) interface{} {
 		Mult(g.Matrix).Scale(1/w, 1/h).Translate(-oriX, -oriY).Invert()
 
 	if g.IsRadial {
+		cx, cy, fx, fy, rx, ry := g.Points[0], g.Points[1], g.Points[2], g.Points[3], g.Points[4], g.Points[4]
+		if g.Units == ObjectBoundingBox {
+			cx = g.Bounds.X + g.Bounds.W*cx
+			cy = g.Bounds.Y + g.Bounds.H*cy
+			fx = g.Bounds.X + g.Bounds.W*fx
+			fy = g.Bounds.Y + g.Bounds.H*fy
+			rx *= g.Bounds.W
+			ry *= g.Bounds.H
+		} else {
+			cx, cy = objMatrix.Transform(cx, cy)
+			rx, ry = objMatrix.Transform(rx, ry)
+			rx -= objMatrix.E // back out the translate -- should have a transform
+			// option without translate -- TransformVector or something like that, and
+			// transform should then be TransformPoint to be most clear
+			ry -= objMatrix.F
+		}
 
-		cx := g.Bounds.X + g.Bounds.W*g.Points[0]
-		cy := g.Bounds.Y + g.Bounds.H*g.Points[1]
-		rx := g.Bounds.W * g.Points[4]
-		ry := g.Bounds.H * g.Points[4]
-
-		if g.Points[0] == g.Points[2] && g.Points[1] == g.Points[3] {
+		if cx == fx && cy == fy {
 			// When the focus and center are the same things are much simpler;
 			// t is just distance from center
 			// scaled by the bounds aspect ratio times r
 			return ColorFunc(func(xi, yi int) color.Color {
 				x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
-				dx := float64(x) - cx
-				dy := float64(y) - cy
+				dx := x - cx
+				dy := y - cy
 				return g.tColor(math.Sqrt(dx*dx/(rx*rx)+dy*dy/(ry*ry)), opacity)
 			})
 		} else {
-			fx := g.Bounds.X + g.Bounds.W*g.Points[2]
-			fy := g.Bounds.Y + g.Bounds.H*g.Points[3]
-
-			//Scale
 			fx /= rx
 			fy /= ry
 			cx /= rx
@@ -206,9 +213,8 @@ func (g *Gradient) GetColorFunction(opacity float64) interface{} {
 			}
 			return ColorFunc(func(xi, yi int) color.Color {
 				x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
-
-				ex := float64(x) / rx
-				ey := float64(y) / ry
+				ex := x / rx
+				ey := y / ry
 
 				t1x, t1y, intersects := RayCircleIntersectionF(ex, ey, fx, fy, cx, cy, 1.0)
 				if intersects == false { //In this case, use the last stop color
@@ -225,11 +231,16 @@ func (g *Gradient) GetColorFunction(opacity float64) interface{} {
 			})
 		}
 	} else {
-
-		p1x := g.Bounds.X + g.Bounds.W*g.Points[0]
-		p1y := g.Bounds.Y + g.Bounds.H*g.Points[1]
-		p2x := g.Bounds.X + g.Bounds.W*g.Points[2]
-		p2y := g.Bounds.Y + g.Bounds.H*g.Points[3]
+		p1x, p1y, p2x, p2y := g.Points[0], g.Points[1], g.Points[2], g.Points[3]
+		if g.Units == ObjectBoundingBox {
+			p1x = g.Bounds.X + g.Bounds.W*p1x
+			p1y = g.Bounds.Y + g.Bounds.H*p1y
+			p2x = g.Bounds.X + g.Bounds.W*p2x
+			p2y = g.Bounds.Y + g.Bounds.H*p2y
+		} else {
+			p1x, p1y = objMatrix.Transform(p1x, p1y)
+			p2x, p2y = objMatrix.Transform(p2x, p2y)
+		}
 
 		dx := p2x - p1x
 		dy := p2y - p1y
