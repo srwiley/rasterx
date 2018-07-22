@@ -332,13 +332,13 @@ func TestGradient(t *testing.T) {
 
 	p.AddTo(offsetPath)
 
-	scannerGV.SetColor(radialGradient.GetColorFunction(1))
+	scannerGV.SetColor(radialGradient.GetColorFunction(1, Identity))
 	f.Draw()
 	f.Clear()
 
 	scannerGV.SetClip(image.Rect(420, 350, 460, 400))
 	offsetPath.M = Identity.Translate(340, 180)
-	scannerGV.SetColor(radialGradient.GetColorFunction(1))
+	scannerGV.SetColor(radialGradient.GetColorFunction(1, Identity))
 	p.AddTo(offsetPath)
 	f.Draw()
 	f.Clear()
@@ -348,7 +348,7 @@ func TestGradient(t *testing.T) {
 	f.Draw()
 	f.Clear()
 
-	scannerGV.SetColor(linearGradient.GetColorFunction(1.0))
+	scannerGV.SetColor(linearGradient.GetColorFunction(1.0, Identity))
 	p.AddTo(f)
 	f.Draw()
 	f.Clear()

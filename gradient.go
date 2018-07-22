@@ -161,11 +161,6 @@ func (g *Gradient) GetColorFunction(opacity float64, objMatrix Matrix2D) interfa
 		return g.Stops[i].Offset < g.Stops[j].Offset
 	})
 
-	w, h := float64(g.Bounds.W), float64(g.Bounds.H)
-	oriX, oriY := float64(g.Bounds.X), float64(g.Bounds.Y)
-	gradT := Identity.Translate(oriX, oriY).Scale(w, h).
-		Mult(g.Matrix).Scale(1/w, 1/h).Translate(-oriX, -oriY).Invert()
-
 	if g.IsRadial {
 		cx, cy, fx, fy, rx, ry := g.Points[0], g.Points[1], g.Points[2], g.Points[3], g.Points[4], g.Points[4]
 		if g.Units == ObjectBoundingBox {
@@ -175,13 +170,13 @@ func (g *Gradient) GetColorFunction(opacity float64, objMatrix Matrix2D) interfa
 			fy = g.Bounds.Y + g.Bounds.H*fy
 			rx *= g.Bounds.W
 			ry *= g.Bounds.H
+			cx, cy = g.Matrix.Transform(cx, cy)
+			rx, ry = g.Matrix.TransformVector(rx, ry)
 		} else {
+			cx, cy = g.Matrix.Transform(cx, cy)
+			rx, ry = g.Matrix.TransformVector(rx, ry)
 			cx, cy = objMatrix.Transform(cx, cy)
-			rx, ry = objMatrix.Transform(rx, ry)
-			rx -= objMatrix.E // back out the translate -- should have a transform
-			// option without translate -- TransformVector or something like that, and
-			// transform should then be TransformPoint to be most clear
-			ry -= objMatrix.F
+			rx, ry = objMatrix.TransformVector(rx, ry)
 		}
 
 		if cx == fx && cy == fy {
@@ -189,7 +184,8 @@ func (g *Gradient) GetColorFunction(opacity float64, objMatrix Matrix2D) interfa
 			// t is just distance from center
 			// scaled by the bounds aspect ratio times r
 			return ColorFunc(func(xi, yi int) color.Color {
-				x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
+				x := float64(xi) + 0.5
+				y := float64(yi) + 0.5
 				dx := x - cx
 				dy := y - cy
 				return g.tColor(math.Sqrt(dx*dx/(rx*rx)+dy*dy/(ry*ry)), opacity)
@@ -212,7 +208,8 @@ func (g *Gradient) GetColorFunction(opacity float64, objMatrix Matrix2D) interfa
 				}
 			}
 			return ColorFunc(func(xi, yi int) color.Color {
-				x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
+				x := float64(xi) + 0.5
+				y := float64(yi) + 0.5
 				ex := x / rx
 				ey := y / ry
 
@@ -237,7 +234,11 @@ func (g *Gradient) GetColorFunction(opacity float64, objMatrix Matrix2D) interfa
 			p1y = g.Bounds.Y + g.Bounds.H*p1y
 			p2x = g.Bounds.X + g.Bounds.W*p2x
 			p2y = g.Bounds.Y + g.Bounds.H*p2y
+			p1x, p1y = g.Matrix.Transform(p1x, p1y)
+			p2x, p2y = g.Matrix.Transform(p2x, p2y)
 		} else {
+			p1x, p1y = g.Matrix.Transform(p1x, p1y)
+			p2x, p2y = g.Matrix.Transform(p2x, p2y)
 			p1x, p1y = objMatrix.Transform(p1x, p1y)
 			p2x, p2y = objMatrix.Transform(p2x, p2y)
 		}
@@ -246,7 +247,8 @@ func (g *Gradient) GetColorFunction(opacity float64, objMatrix Matrix2D) interfa
 		dy := p2y - p1y
 		d := (dx*dx + dy*dy) // self inner prod
 		return ColorFunc(func(xi, yi int) color.Color {
-			x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
+			x := float64(xi) + 0.5
+			y := float64(yi) + 0.5
 			dfx := x - p1x
 			dfy := y - p1y
 			return g.tColor((dx*dfx+dy*dfy)/d, opacity)
