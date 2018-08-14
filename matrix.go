@@ -86,8 +86,8 @@ func (m Matrix2D) TFixed(a fixed.Point26_6) (b fixed.Point26_6) {
 	return
 }
 
-// Transform multiples the input vector by matrix n and outputs the results vector
-// components
+// Transform multiples the input vector by matrix m and outputs the results vector
+// components.
 func (m Matrix2D) Transform(x1, y1 float64) (x2, y2 float64) {
 	x2 = x1*m.A + y1*m.C + m.E
 	y2 = x1*m.B + y1*m.D + m.F
