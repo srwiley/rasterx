@@ -148,7 +148,11 @@ func (g *Gradient) blendStops(t, opacity float64, s1, s2 GradStop, flip bool) co
 		0xFF}, (s1.Opacity*(1-tp)+s2.Opacity*tp)*opacity)
 }
 
-func (g *Gradient) GetColorFunction(opacity float64, objMatrix Matrix2D) interface{} {
+func (g *Gradient) GetColorFunction(opacity float64) interface{} {
+	return g.GetColorFunctionUS(opacity, Identity)
+}
+
+func (g *Gradient) GetColorFunctionUS(opacity float64, objMatrix Matrix2D) interface{} {
 	switch len(g.Stops) {
 	case 0:
 		return ApplyOpacity(color.RGBA{255, 0, 255, 255}, opacity) // default error color for gradient w/o stops.
