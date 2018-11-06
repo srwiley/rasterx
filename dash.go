@@ -85,22 +85,31 @@ func (r *Dasher) lineF(b fixed.Point26_6) {
 // the dash pattern. Pass in nil or an empty slice for no dashes. dashoffset is the starting offset into the dash array.
 func (r *Dasher) SetStroke(width, miterLimit fixed.Int26_6, capL, capT CapFunc, gp GapFunc, jm JoinMode, dashes []float64, dashOffset float64) {
 	r.Stroker.SetStroke(width, miterLimit, capL, capT, gp, jm)
-	if len(dashes) > 0 { // Dashed Stroke
-		// Convert the float dash array and offset to fixed point and attach to the Filler
-		if len(dashes) > len(r.Dashes) {
-			r.Dashes = make([]fixed.Int26_6, len(dashes))
-		} else {
-			r.Dashes = r.Dashes[:len(dashes)]
-		}
-		for i, v := range dashes {
-			r.Dashes[i] = fixed.Int26_6(v * 64)
-		}
-		r.DashOffset = fixed.Int26_6(dashOffset * 64)
-		r.sgm = r
-	} else {
-		r.Dashes = r.Dashes[:0] // clear the dash array
-		r.sgm = &r.Stroker      // This is just plain stroking
+
+	r.Dashes = r.Dashes[:0] // clear the dash array
+	if len(dashes) == 0 {
+		r.sgm = &r.Stroker // This is just plain stroking
+		return
 	}
+	// Dashed Stroke
+	// Convert the float dash array and offset to fixed point and attach to the Filler
+	somethingIsPos := false
+	for _, v := range dashes {
+		fv := fixed.Int26_6(v * 64)
+		if fv <= 0 { // Negatives are considered 0s.
+			fv = 0
+		} else {
+			somethingIsPos = true
+		}
+		r.Dashes = append(r.Dashes, fv)
+	}
+	if somethingIsPos == false {
+		r.Dashes = r.Dashes[:0]
+		r.sgm = &r.Stroker // This is just plain stroking
+		return
+	}
+	r.DashOffset = fixed.Int26_6(dashOffset * 64)
+	r.sgm = r
 }
 
 func (r *Dasher) Stop(isClosed bool) {
