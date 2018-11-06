@@ -93,23 +93,23 @@ func (r *Dasher) SetStroke(width, miterLimit fixed.Int26_6, capL, capT CapFunc, 
 	}
 	// Dashed Stroke
 	// Convert the float dash array and offset to fixed point and attach to the Filler
-	somethingIsPos := false
+	oneIsPos := false // Check to see if at least one dash is > 0
 	for _, v := range dashes {
 		fv := fixed.Int26_6(v * 64)
 		if fv <= 0 { // Negatives are considered 0s.
 			fv = 0
 		} else {
-			somethingIsPos = true
+			oneIsPos = true
 		}
 		r.Dashes = append(r.Dashes, fv)
 	}
-	if somethingIsPos == false {
+	if oneIsPos == false {
 		r.Dashes = r.Dashes[:0]
 		r.sgm = &r.Stroker // This is just plain stroking
 		return
 	}
 	r.DashOffset = fixed.Int26_6(dashOffset * 64)
-	r.sgm = r
+	r.sgm = r // Use the full dasher
 }
 
 func (r *Dasher) Stop(isClosed bool) {
