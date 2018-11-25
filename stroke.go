@@ -1,6 +1,7 @@
 // Copyright 2017 by the rasterx Authors. All rights reserved.
 //
 // created: 2017 by S.R.Wiley
+
 package rasterx
 
 import (
@@ -34,7 +35,7 @@ type (
 		RT, RL                      fixed.Int26_6
 	}
 
-	// Strokerizer does everything a Filler does, but
+	// Stroker does everything a Filler does, but
 	// also allows for stroking and dashed stroking in addition to
 	// filling
 	Stroker struct {
@@ -69,11 +70,7 @@ const (
 // values.
 func NewStroker(width, height int, scanner Scanner) *Stroker {
 	r := new(Stroker)
-	if scanner != nil {
-		r.Scanner = scanner
-	} else {
-		r.Scanner = new(ScannerGV)
-	}
+	r.Scanner = scanner
 	r.SetBounds(width, height)
 	//Defaults for stroking
 	r.SetWinding(true)
@@ -213,15 +210,15 @@ func strokeArc(p Adder, a, s1, s2 fixed.Point26_6, clockwise bool, trimStart,
 	tde := math.Tan(dTheta / 2)
 	alpha := fixed.Int26_6(math.Sin(dTheta) * (math.Sqrt(4+3*tde*tde) - 1) * (64.0 / 3.0)) // Math is fun!
 	r := float64(Length(s1.Sub(a)))                                                        // Note r is *64
-	ldp := fixed.Point26_6{-fixed.Int26_6(r * math.Sin(theta1)), fixed.Int26_6(r * math.Cos(theta1))}
+	ldp := fixed.Point26_6{X: -fixed.Int26_6(r * math.Sin(theta1)), Y: fixed.Int26_6(r * math.Cos(theta1))}
 	ds1 = ldp
-	ps1 = fixed.Point26_6{a.X + ldp.Y, a.Y - ldp.X}
+	ps1 = fixed.Point26_6{X: a.X + ldp.Y, Y: a.Y - ldp.X}
 	firstPoint(ps1)
 	s1 = ps1
 	for i := 1; i <= segs; i++ {
 		eta := theta1 + dTheta*float64(i)
-		ds2 = fixed.Point26_6{-fixed.Int26_6(r * math.Sin(eta)), fixed.Int26_6(r * math.Cos(eta))}
-		ps2 = fixed.Point26_6{a.X + ds2.Y, a.Y - ds2.X} // Using deriviative to calc new pt, because circle
+		ds2 = fixed.Point26_6{X: -fixed.Int26_6(r * math.Sin(eta)), Y: fixed.Int26_6(r * math.Cos(eta))}
+		ps2 = fixed.Point26_6{X: a.X + ds2.Y, Y: a.Y - ds2.X} // Using deriviative to calc new pt, because circle
 		p1 := s1.Add(ldp.Mul(alpha))
 		p2 := ps2.Sub(ds2.Mul(alpha))
 		p.CubeBezier(p1, p2, ps2)
@@ -232,13 +229,13 @@ func strokeArc(p Adder, a, s1, s2 fixed.Point26_6, clockwise bool, trimStart,
 
 // Joiner is called when two segments of a stroke are joined. it is exposed
 // so that if can be wrapped to generate callbacks for the join points.
-func (s *Stroker) Joiner(p C2Point) {
+func (r *Stroker) Joiner(p C2Point) {
 	crossProd := p.LNorm.X*p.TNorm.Y - p.TNorm.X*p.LNorm.Y
 	// stroke bottom edge, with the reverse of p
-	s.strokeEdge(C2Point{P: p.P, TNorm: Invert(p.LNorm), LNorm: Invert(p.TNorm),
+	r.strokeEdge(C2Point{P: p.P, TNorm: Invert(p.LNorm), LNorm: Invert(p.TNorm),
 		TTan: Invert(p.LTan), LTan: Invert(p.TTan), RT: -p.RL, RL: -p.RT}, -crossProd)
 	// stroke top edge
-	s.strokeEdge(p, crossProd)
+	r.strokeEdge(p, crossProd)
 }
 
 // strokeEdge reduces code redundancy in the Joiner function by 2x since it handles
@@ -467,45 +464,44 @@ func (r *Stroker) strokeEdge(p C2Point, crossProd fixed.Int26_6) {
 // Stop a stroked line. The line will close
 // is isClosed is true. Otherwise end caps will
 // be drawn at both ends.
-func (s *Stroker) Stop(isClosed bool) {
-	if s.inStroke == false {
+func (r *Stroker) Stop(isClosed bool) {
+	if r.inStroke == false {
 		return
 	}
-	r := &s.Filler
+	rf := &r.Filler
 	if isClosed {
-		if s.firstP.P != r.a {
-			s.Line(s.firstP.P)
+		if r.firstP.P != rf.a {
+			r.Line(r.firstP.P)
 		}
-		a := r.a
-		s.firstP.TNorm = s.leadPoint.TNorm
-		s.firstP.RT = s.leadPoint.RT
-		s.firstP.TTan = s.leadPoint.TTan
+		a := rf.a
+		r.firstP.TNorm = r.leadPoint.TNorm
+		r.firstP.RT = r.leadPoint.RT
+		r.firstP.TTan = r.leadPoint.TTan
 
-		r.Start(s.firstP.P.Sub(s.firstP.TNorm))
-		r.Line(a.Sub(s.ln))
-		r.Start(a.Add(s.ln))
-		r.Line(s.firstP.P.Add(s.firstP.TNorm))
-		s.Joiner(s.firstP)
-		s.firstP.blackWidowMark(r)
-
+		rf.Start(r.firstP.P.Sub(r.firstP.TNorm))
+		rf.Line(a.Sub(r.ln))
+		rf.Start(a.Add(r.ln))
+		rf.Line(r.firstP.P.Add(r.firstP.TNorm))
+		r.Joiner(r.firstP)
+		r.firstP.blackWidowMark(rf)
 	} else {
-		a := r.a
-		r.Start(s.leadPoint.P.Sub(s.leadPoint.TNorm))
-		r.Line(a.Sub(s.ln))
-		r.Start(a.Add(s.ln))
-		r.Line(s.leadPoint.P.Add(s.leadPoint.TNorm))
-		s.CapL(r, s.leadPoint.P, s.leadPoint.TNorm)
-		s.CapT(r, s.firstP.P, Invert(s.firstP.LNorm))
+		a := rf.a
+		rf.Start(r.leadPoint.P.Sub(r.leadPoint.TNorm))
+		rf.Line(a.Sub(r.ln))
+		rf.Start(a.Add(r.ln))
+		rf.Line(r.leadPoint.P.Add(r.leadPoint.TNorm))
+		r.CapL(rf, r.leadPoint.P, r.leadPoint.TNorm)
+		r.CapT(rf, r.firstP.P, Invert(r.firstP.LNorm))
 	}
-	s.inStroke = false
+	r.inStroke = false
 }
 
-// StrokeQuadBezier starts a stroked quadratic bezier.
+// QuadBezier starts a stroked quadratic bezier.
 func (r *Stroker) QuadBezier(b, c fixed.Point26_6) {
 	r.quadBezierf(r, b, c)
 }
 
-// StrokeQuadBezier starts a stroked quadratic bezier.
+// CubeBezier starts a stroked quadratic bezier.
 func (r *Stroker) CubeBezier(b, c, d fixed.Point26_6) {
 	r.cubeBezierf(r, b, c, d)
 }
@@ -569,7 +565,7 @@ func (r *Stroker) LineSeg(sgm Rasterx, b fixed.Point26_6) {
 		if r.trailPoint.TTan.X != 0 || r.trailPoint.TTan.Y != 0 {
 			ba = r.trailPoint.TTan // Use last tangent for seg tangent
 		} else { // Must be on top of last moveto; set ba to X axis unit vector
-			ba = fixed.Point26_6{1 << 6, 0}
+			ba = fixed.Point26_6{X: 1 << 6, Y: 0}
 		}
 	}
 	bnorm := turnPort90(ToLength(ba, r.u))
@@ -609,6 +605,7 @@ func (r *Stroker) lineF(b fixed.Point26_6) {
 	r.ln = bnorm
 }
 
+// Start iniitates a stroked path
 func (r *Stroker) Start(a fixed.Point26_6) {
 	r.inStroke = false
 	r.Filler.Start(a)

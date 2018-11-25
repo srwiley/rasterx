@@ -1,6 +1,7 @@
 // Copyright 2018 by the rasterx Authors. All rights reserved.
 //_
 // Created 2017 by S.R.Wiley
+
 package rasterx
 
 import (
@@ -12,8 +13,9 @@ import (
 )
 
 type (
+	// ColorFunc maps a color to x y coordinates
 	ColorFunc func(x, y int) color.Color
-
+	// Scanner interface for path generating types
 	Scanner interface {
 		Start(a fixed.Point26_6)
 		Line(b fixed.Point26_6)
@@ -29,7 +31,7 @@ type (
 		// to clear)
 		SetClip(rect image.Rectangle)
 	}
-
+	// Adder interface for types that can accumlate path commands
 	Adder interface {
 		// Start starts a new curve at the given point.
 		Start(a fixed.Point26_6)
@@ -42,7 +44,7 @@ type (
 		// Closes the path to the start point if closeLoop is true
 		Stop(closeLoop bool)
 	}
-
+	// Rasterx extends the adder interface to include lineF and joinF functions
 	Rasterx interface {
 		Adder
 		lineF(b fixed.Point26_6)
@@ -63,7 +65,7 @@ func (r *Filler) Start(a fixed.Point26_6) {
 	r.Scanner.Start(a)
 }
 
-// Start starts a new path at the given point.
+// Stop sends a path at the given point.
 func (r *Filler) Stop(isClosed bool) {
 	if r.first != r.a {
 		r.Line(r.first)
@@ -73,12 +75,6 @@ func (r *Filler) Stop(isClosed bool) {
 // QuadBezier adds a quadratic segment to the current curve.
 func (r *Filler) QuadBezier(b, c fixed.Point26_6) {
 	r.QuadBezierF(r, b, c)
-}
-
-func devSquaredFx(ax, ay, bx, by, cx, cy fixed.Int26_6) fixed.Int26_6 {
-	devx := ax - 2*bx + cx
-	devy := ay - 2*by + cy
-	return (devx*devx + devy*devy) >> 6
 }
 
 // QuadTo flattens the quadratic Bezier curve into lines through the LineTo func
@@ -168,7 +164,7 @@ func (r *Filler) QuadBezierF(sgm Rasterx, b, c fixed.Point26_6) {
 		float32(b.X), float32(b.Y),
 		float32(c.X), float32(c.Y),
 		func(dx, dy float32) {
-			sgm.lineF(fixed.Point26_6{fixed.Int26_6(dx), fixed.Int26_6(dy)})
+			sgm.lineF(fixed.Point26_6{X: fixed.Int26_6(dx), Y: fixed.Int26_6(dy)})
 		})
 
 }
@@ -184,7 +180,7 @@ func (r *Filler) joinF() {
 
 }
 
-// lineF for a filling rasterizer is just the line call in scan
+// Line for a filling rasterizer is just the line call in scan
 func (r *Filler) Line(b fixed.Point26_6) {
 	r.lineF(b)
 }
@@ -195,7 +191,7 @@ func (r *Filler) lineF(b fixed.Point26_6) {
 	r.a = b
 }
 
-// CubeBezier adds a cubic bezier to the curve. sending the line calls the the
+// CubeBezierF adds a cubic bezier to the curve. sending the line calls the the
 // sgm Rasterizer
 func (r *Filler) CubeBezierF(sgm Rasterx, b, c, d fixed.Point26_6) {
 	if (r.a == b && c == d) || (r.a == b && b == c) || (c == b && d == c) {
@@ -208,10 +204,11 @@ func (r *Filler) CubeBezierF(sgm Rasterx, b, c, d fixed.Point26_6) {
 		float32(c.X), float32(c.Y),
 		float32(d.X), float32(d.Y),
 		func(ex, ey float32) {
-			sgm.lineF(fixed.Point26_6{fixed.Int26_6(ex), fixed.Int26_6(ey)})
+			sgm.lineF(fixed.Point26_6{X: fixed.Int26_6(ex), Y: fixed.Int26_6(ey)})
 		})
 }
 
+// Clear resets the filler
 func (r *Filler) Clear() {
 	r.a = fixed.Point26_6{}
 	r.first = r.a
@@ -237,11 +234,7 @@ func (r *Filler) SetBounds(width, height int) {
 // If Scanner is nil default scanner ScannerGV is used
 func NewFiller(width, height int, scanner Scanner) *Filler {
 	r := new(Filler)
-	if scanner != nil {
-		r.Scanner = scanner
-	} else {
-		r.Scanner = new(ScannerGV)
-	}
+	r.Scanner = scanner
 	r.SetBounds(width, height)
 	r.SetWinding(true)
 	return r

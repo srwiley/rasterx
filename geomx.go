@@ -1,7 +1,6 @@
-// Copyright 2017 by the rasterx Authors. All rights reserved.
-//_
-// created: 2/12/2017 by S.R.Wiley
 // geomx adds some geometry functions needed by rasterx
+// Copyright 2017 by the rasterx Authors. All rights reserved.
+// Created: 2/12/2017 by S.R.Wiley
 
 package rasterx
 
@@ -12,19 +11,19 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// Inverts returns the point
+// Invert  returns the point inverted around the origin
 func Invert(v fixed.Point26_6) fixed.Point26_6 {
-	return fixed.Point26_6{-v.X, -v.Y}
+	return fixed.Point26_6{X: -v.X, Y: -v.Y}
 }
 
 // turnStarboard90 returns the vector 90 degrees starboard (right in direction heading)
 func turnStarboard90(v fixed.Point26_6) fixed.Point26_6 {
-	return fixed.Point26_6{-v.Y, v.X}
+	return fixed.Point26_6{X: -v.Y, Y: v.X}
 }
 
 // turnPort90 returns the vector 90 degrees port (left in direction heading)
 func turnPort90(v fixed.Point26_6) fixed.Point26_6 {
-	return fixed.Point26_6{v.Y, -v.X}
+	return fixed.Point26_6{X: v.Y, Y: -v.X}
 }
 
 // DotProd returns the inner product of p and q
@@ -32,12 +31,13 @@ func DotProd(p fixed.Point26_6, q fixed.Point26_6) fixed.Int52_12 {
 	return fixed.Int52_12(int64(p.X)*int64(q.X) + int64(p.Y)*int64(q.Y))
 }
 
-// Magnitiude of the point
+// Length is the distance from the origin of the point
 func Length(v fixed.Point26_6) fixed.Int26_6 {
 	vx, vy := float64(v.X), float64(v.Y)
 	return fixed.Int26_6(math.Sqrt(vx*vx + vy*vy))
 }
 
+//PathCommand is the type for the path command token
 type PathCommand fixed.Int26_6
 
 // Human readable path constants
@@ -53,6 +53,7 @@ const (
 // int points.
 type Path []fixed.Int26_6
 
+// ToSVGPath returns a string representation of the path
 func (p Path) ToSVGPath() string {
 	s := ""
 	for i := 0; i < len(p); {
@@ -76,7 +77,7 @@ func (p Path) ToSVGPath() string {
 			i += 7
 		case PathClose:
 			s += "Z"
-			i += 1
+			i++
 		default:
 			panic("freetype/rasterx: bad pather")
 		}
@@ -89,7 +90,7 @@ func (p Path) String() string {
 	return p.ToSVGPath()
 }
 
-// Clears zeros the path slice
+// Clear zeros the path slice
 func (p *Path) Clear() {
 	*p = (*p)[:0]
 }
@@ -99,49 +100,49 @@ func (p *Path) Start(a fixed.Point26_6) {
 	*p = append(*p, fixed.Int26_6(PathMoveTo), a.X, a.Y)
 }
 
-// Add1 adds a linear segment to the current curve.
+// Line adds a linear segment to the current curve.
 func (p *Path) Line(b fixed.Point26_6) {
 	*p = append(*p, fixed.Int26_6(PathLineTo), b.X, b.Y)
 }
 
-// Add2 adds a quadratic segment to the current curve.
+// QuadBezier adds a quadratic segment to the current curve.
 func (p *Path) QuadBezier(b, c fixed.Point26_6) {
 	*p = append(*p, fixed.Int26_6(PathQuadTo), b.X, b.Y, c.X, c.Y)
 }
 
-// Add3 adds a cubic segment to the current curve.
+// CubeBezier adds a cubic segment to the current curve.
 func (p *Path) CubeBezier(b, c, d fixed.Point26_6) {
 	*p = append(*p, fixed.Int26_6(PathCubicTo), b.X, b.Y, c.X, c.Y, d.X, d.Y)
 }
 
-// Close joins the ends of the path
+// Stop joins the ends of the path
 func (p *Path) Stop(closeLoop bool) {
 	if closeLoop {
 		*p = append(*p, fixed.Int26_6(PathClose))
 	}
 }
 
-// AddPath adds the Path p to q.
+// AddTo adds the Path p to q.
 func (p Path) AddTo(q Adder) {
 	for i := 0; i < len(p); {
 		switch PathCommand(p[i]) {
 		case PathMoveTo:
 			q.Stop(false) // Fixes issues #1 by described by Djadala; implict close if currently in path.
-			q.Start(fixed.Point26_6{p[i+1], p[i+2]})
+			q.Start(fixed.Point26_6{X: p[i+1], Y: p[i+2]})
 			i += 3
 		case PathLineTo:
-			q.Line(fixed.Point26_6{p[i+1], p[i+2]})
+			q.Line(fixed.Point26_6{X: p[i+1], Y: p[i+2]})
 			i += 3
 		case PathQuadTo:
-			q.QuadBezier(fixed.Point26_6{p[i+1], p[i+2]}, fixed.Point26_6{p[i+3], p[i+4]})
+			q.QuadBezier(fixed.Point26_6{X: p[i+1], Y: p[i+2]}, fixed.Point26_6{X: p[i+3], Y: p[i+4]})
 			i += 5
 		case PathCubicTo:
-			q.CubeBezier(fixed.Point26_6{p[i+1], p[i+2]},
-				fixed.Point26_6{p[i+3], p[i+4]}, fixed.Point26_6{p[i+5], p[i+6]})
+			q.CubeBezier(fixed.Point26_6{X: p[i+1], Y: p[i+2]},
+				fixed.Point26_6{X: p[i+3], Y: p[i+4]}, fixed.Point26_6{X: p[i+5], Y: p[i+6]})
 			i += 7
 		case PathClose:
 			q.Stop(true)
-			i += 1
+			i++
 		default:
 			panic("AddTo: bad path")
 		}
@@ -149,6 +150,7 @@ func (p Path) AddTo(q Adder) {
 	q.Stop(false)
 }
 
+// ToLength scales the point to the length indicated by ln
 func ToLength(p fixed.Point26_6, ln fixed.Int26_6) (q fixed.Point26_6) {
 	if ln == 0 || (p.X == 0 && p.Y == 0) {
 		return
@@ -233,8 +235,8 @@ func CircleCircleIntersection(ct, cl fixed.Point26_6, rt, rl fixed.Int26_6) (xt1
 	p2y := float64(ct.Y) + float64(dc.Y)*afd
 	xt1x, xt1y := p2x+rOffx, p2y+rOffy
 	xt2x, xt2y := p2x-rOffx, p2y-rOffy
-	return fixed.Point26_6{fixed.Int26_6(xt1x), fixed.Int26_6(xt1y)},
-		fixed.Point26_6{fixed.Int26_6(xt2x), fixed.Int26_6(xt2y)}, true
+	return fixed.Point26_6{X: fixed.Int26_6(xt1x), Y: fixed.Int26_6(xt1y)},
+		fixed.Point26_6{X: fixed.Int26_6(xt2x), Y: fixed.Int26_6(xt2y)}, true
 }
 
 // CalcIntersect calculates the points of intersection of two fixed point lines
@@ -243,7 +245,7 @@ func CalcIntersect(a1, a2, b1, b2 fixed.Point26_6) (x fixed.Point26_6) {
 	da, db, ds := a2.Sub(a1), b2.Sub(b1), a1.Sub(b1)
 	det := float32(da.X*db.Y - db.X*da.Y) // Determinate
 	t := float32(ds.Y*db.X-ds.X*db.Y) / det
-	x = a1.Add(fixed.Point26_6{fixed.Int26_6(float32(da.X) * t), fixed.Int26_6(float32(da.Y) * t)})
+	x = a1.Add(fixed.Point26_6{X: fixed.Int26_6(float32(da.X) * t), Y: fixed.Int26_6(float32(da.Y) * t)})
 	return
 }
 
@@ -254,12 +256,12 @@ func CalcIntersect(a1, a2, b1, b2 fixed.Point26_6) (x fixed.Point26_6) {
 func RayCircleIntersection(s1, s2, c fixed.Point26_6, r fixed.Int26_6) (x fixed.Point26_6, intersects bool) {
 	fx, fy, intersects := RayCircleIntersectionF(float64(s1.X), float64(s1.Y),
 		float64(s2.X), float64(s2.Y), float64(c.X), float64(c.Y), float64(r))
-	return fixed.Point26_6{fixed.Int26_6(fx),
-		fixed.Int26_6(fy)}, intersects
+	return fixed.Point26_6{X: fixed.Int26_6(fx),
+		Y: fixed.Int26_6(fy)}, intersects
 
 }
 
-// RayCircleIntersection calculates the points of intersection of
+// RayCircleIntersectionF calculates in floating point the points of intersection of
 // a ray starting at s2 passing through s1 and a circle in fixed point.
 // Returns intersects == false if no solution is possible. If two
 // solutions are possible, the point closest to s2 is returned

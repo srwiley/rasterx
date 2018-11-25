@@ -1,6 +1,6 @@
+//Package rasterx implements a golang rasterizer
 // Copyright 2018 The oksvg Authors. All rights reserved.
-//
-// created: 5/12/2018 by S.R.Wiley
+// Created: 5/12/2018 by S.R.Wiley
 package rasterx
 
 import (
@@ -9,11 +9,13 @@ import (
 	"sort"
 )
 
+// SVG bounds paremater constants
 const (
 	ObjectBoundingBox GradientUnits = iota
 	UserSpaceOnUse
 )
 
+// SVG spread parameter constants
 const (
 	PadSpread SpreadMethod = iota
 	ReflectSpread
@@ -23,15 +25,17 @@ const (
 const epsilonF = 1e-5
 
 type (
-	SpreadMethod  byte
+	// SpreadMethod is the type for spread parameters
+	SpreadMethod byte
+	// GradientUnits is the type for gradient units
 	GradientUnits byte
-
+	// GradStop is a struct representing a stop in the SVG 2.0 gradient specification
 	GradStop struct {
 		StopColor color.Color
 		Offset    float64
 		Opacity   float64
 	}
-
+	// Gradient is a struct hold a description of an SVG 2.0 gradient
 	Gradient struct {
 		Points   [5]float64
 		Stops    []GradStop
@@ -43,6 +47,7 @@ type (
 	}
 )
 
+// ApplyOpacity sets the color's alpha channel to the given value
 func ApplyOpacity(c color.Color, opacity float64) color.NRGBA {
 	r, g, b, _ := c.RGBA()
 	return color.NRGBA{uint8(r), uint8(g), uint8(b), uint8(opacity * 0xFF)}
@@ -62,7 +67,7 @@ func (g *Gradient) tColor(t, opacity float64) color.Color {
 		return ApplyOpacity(g.Stops[0].StopColor, g.Stops[0].Opacity*opacity)
 	}
 
-	var modRange float64 = 1.0
+	var modRange = 1.0
 	if g.Spread == ReflectSpread {
 		modRange = 2.0
 	}
@@ -126,9 +131,9 @@ func (g *Gradient) tColor(t, opacity float64) color.Color {
 func (g *Gradient) blendStops(t, opacity float64, s1, s2 GradStop, flip bool) color.Color {
 	s1off := s1.Offset
 	if s1.Offset > s2.Offset && !flip { // happens in repeat spread mode
-		s1off -= 1
+		s1off--
 		if t > 1 {
-			t -= 1
+			t--
 		}
 	}
 	if s2.Offset == s1off {
@@ -148,10 +153,12 @@ func (g *Gradient) blendStops(t, opacity float64, s1, s2 GradStop, flip bool) co
 		0xFF}, (s1.Opacity*(1-tp)+s2.Opacity*tp)*opacity)
 }
 
+//GetColorFunction returns the color function
 func (g *Gradient) GetColorFunction(opacity float64) interface{} {
 	return g.GetColorFunctionUS(opacity, Identity)
 }
 
+//GetColorFunctionUS returns the color function using the User Space objMatrix
 func (g *Gradient) GetColorFunctionUS(opacity float64, objMatrix Matrix2D) interface{} {
 	switch len(g.Stops) {
 	case 0:
@@ -197,105 +204,100 @@ func (g *Gradient) GetColorFunctionUS(opacity float64, objMatrix Matrix2D) inter
 					dy := float64(y) - cy
 					return g.tColor(math.Sqrt(dx*dx/(rx*rx)+dy*dy/(ry*ry)), opacity)
 				})
-			} else {
-				return ColorFunc(func(xi, yi int) color.Color {
-					x := float64(xi) + 0.5
-					y := float64(yi) + 0.5
-					dx := x - cx
-					dy := y - cy
-					return g.tColor(math.Sqrt(dx*dx/(rx*rx)+dy*dy/(ry*ry)), opacity)
-				})
 			}
-		} else {
-			fx /= rx
-			fy /= ry
-			cx /= rx
-			cy /= ry
-
-			dfx := fx - cx
-			dfy := fy - cy
-
-			if dfx*dfx+dfy*dfy > 1 { // Focus outside of circle; use intersection
-				// point of line from center to focus and circle as per SVG specs.
-				nfx, nfy, intersects := RayCircleIntersectionF(fx, fy, cx, cy, cx, cy, 1.0-epsilonF)
-				fx, fy = nfx, nfy
-				if intersects == false {
-					return color.RGBA{255, 255, 0, 255} // should not happen
-				}
-			}
-			if g.Units == ObjectBoundingBox {
-				return ColorFunc(func(xi, yi int) color.Color {
-					x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
-					ex := x / rx
-					ey := y / ry
-
-					t1x, t1y, intersects := RayCircleIntersectionF(ex, ey, fx, fy, cx, cy, 1.0)
-					if intersects == false { //In this case, use the last stop color
-						s := g.Stops[len(g.Stops)-1]
-						return ApplyOpacity(s.StopColor, s.Opacity*opacity)
-					}
-					tdx, tdy := t1x-fx, t1y-fy
-					dx, dy := ex-fx, ey-fy
-					if tdx*tdx+tdy*tdy < epsilonF {
-						s := g.Stops[len(g.Stops)-1]
-						return ApplyOpacity(s.StopColor, s.Opacity*opacity)
-					}
-					return g.tColor(math.Sqrt(dx*dx+dy*dy)/math.Sqrt(tdx*tdx+tdy*tdy), opacity)
-				})
-			} else {
-				return ColorFunc(func(xi, yi int) color.Color {
-					x := float64(xi) + 0.5
-					y := float64(yi) + 0.5
-					ex := x / rx
-					ey := y / ry
-
-					t1x, t1y, intersects := RayCircleIntersectionF(ex, ey, fx, fy, cx, cy, 1.0)
-					if intersects == false { //In this case, use the last stop color
-						s := g.Stops[len(g.Stops)-1]
-						return ApplyOpacity(s.StopColor, s.Opacity*opacity)
-					}
-					tdx, tdy := t1x-fx, t1y-fy
-					dx, dy := ex-fx, ey-fy
-					if tdx*tdx+tdy*tdy < epsilonF {
-						s := g.Stops[len(g.Stops)-1]
-						return ApplyOpacity(s.StopColor, s.Opacity*opacity)
-					}
-					return g.tColor(math.Sqrt(dx*dx+dy*dy)/math.Sqrt(tdx*tdx+tdy*tdy), opacity)
-				})
-			}
-		}
-	} else {
-		p1x, p1y, p2x, p2y := g.Points[0], g.Points[1], g.Points[2], g.Points[3]
-		if g.Units == ObjectBoundingBox {
-			p1x = g.Bounds.X + g.Bounds.W*p1x
-			p1y = g.Bounds.Y + g.Bounds.H*p1y
-			p2x = g.Bounds.X + g.Bounds.W*p2x
-			p2y = g.Bounds.Y + g.Bounds.H*p2y
-
-			dx := p2x - p1x
-			dy := p2y - p1y
-			d := (dx*dx + dy*dy) // self inner prod
-			return ColorFunc(func(xi, yi int) color.Color {
-				x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
-				dfx := x - p1x
-				dfy := y - p1y
-				return g.tColor((dx*dfx+dy*dfy)/d, opacity)
-			})
-		} else {
-			p1x, p1y = g.Matrix.Transform(p1x, p1y)
-			p2x, p2y = g.Matrix.Transform(p2x, p2y)
-			p1x, p1y = objMatrix.Transform(p1x, p1y)
-			p2x, p2y = objMatrix.Transform(p2x, p2y)
-			dx := p2x - p1x
-			dy := p2y - p1y
-			d := (dx*dx + dy*dy) // self inner prod
 			return ColorFunc(func(xi, yi int) color.Color {
 				x := float64(xi) + 0.5
 				y := float64(yi) + 0.5
-				dfx := x - p1x
-				dfy := y - p1y
-				return g.tColor((dx*dfx+dy*dfy)/d, opacity)
+				dx := x - cx
+				dy := y - cy
+				return g.tColor(math.Sqrt(dx*dx/(rx*rx)+dy*dy/(ry*ry)), opacity)
 			})
 		}
+		fx /= rx
+		fy /= ry
+		cx /= rx
+		cy /= ry
+
+		dfx := fx - cx
+		dfy := fy - cy
+
+		if dfx*dfx+dfy*dfy > 1 { // Focus outside of circle; use intersection
+			// point of line from center to focus and circle as per SVG specs.
+			nfx, nfy, intersects := RayCircleIntersectionF(fx, fy, cx, cy, cx, cy, 1.0-epsilonF)
+			fx, fy = nfx, nfy
+			if intersects == false {
+				return color.RGBA{255, 255, 0, 255} // should not happen
+			}
+		}
+		if g.Units == ObjectBoundingBox {
+			return ColorFunc(func(xi, yi int) color.Color {
+				x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
+				ex := x / rx
+				ey := y / ry
+
+				t1x, t1y, intersects := RayCircleIntersectionF(ex, ey, fx, fy, cx, cy, 1.0)
+				if intersects == false { //In this case, use the last stop color
+					s := g.Stops[len(g.Stops)-1]
+					return ApplyOpacity(s.StopColor, s.Opacity*opacity)
+				}
+				tdx, tdy := t1x-fx, t1y-fy
+				dx, dy := ex-fx, ey-fy
+				if tdx*tdx+tdy*tdy < epsilonF {
+					s := g.Stops[len(g.Stops)-1]
+					return ApplyOpacity(s.StopColor, s.Opacity*opacity)
+				}
+				return g.tColor(math.Sqrt(dx*dx+dy*dy)/math.Sqrt(tdx*tdx+tdy*tdy), opacity)
+			})
+		}
+		return ColorFunc(func(xi, yi int) color.Color {
+			x := float64(xi) + 0.5
+			y := float64(yi) + 0.5
+			ex := x / rx
+			ey := y / ry
+
+			t1x, t1y, intersects := RayCircleIntersectionF(ex, ey, fx, fy, cx, cy, 1.0)
+			if intersects == false { //In this case, use the last stop color
+				s := g.Stops[len(g.Stops)-1]
+				return ApplyOpacity(s.StopColor, s.Opacity*opacity)
+			}
+			tdx, tdy := t1x-fx, t1y-fy
+			dx, dy := ex-fx, ey-fy
+			if tdx*tdx+tdy*tdy < epsilonF {
+				s := g.Stops[len(g.Stops)-1]
+				return ApplyOpacity(s.StopColor, s.Opacity*opacity)
+			}
+			return g.tColor(math.Sqrt(dx*dx+dy*dy)/math.Sqrt(tdx*tdx+tdy*tdy), opacity)
+		})
 	}
+	p1x, p1y, p2x, p2y := g.Points[0], g.Points[1], g.Points[2], g.Points[3]
+	if g.Units == ObjectBoundingBox {
+		p1x = g.Bounds.X + g.Bounds.W*p1x
+		p1y = g.Bounds.Y + g.Bounds.H*p1y
+		p2x = g.Bounds.X + g.Bounds.W*p2x
+		p2y = g.Bounds.Y + g.Bounds.H*p2y
+
+		dx := p2x - p1x
+		dy := p2y - p1y
+		d := (dx*dx + dy*dy) // self inner prod
+		return ColorFunc(func(xi, yi int) color.Color {
+			x, y := gradT.Transform(float64(xi)+0.5, float64(yi)+0.5)
+			dfx := x - p1x
+			dfy := y - p1y
+			return g.tColor((dx*dfx+dy*dfy)/d, opacity)
+		})
+	}
+	p1x, p1y = g.Matrix.Transform(p1x, p1y)
+	p2x, p2y = g.Matrix.Transform(p2x, p2y)
+	p1x, p1y = objMatrix.Transform(p1x, p1y)
+	p2x, p2y = objMatrix.Transform(p2x, p2y)
+	dx := p2x - p1x
+	dy := p2y - p1y
+	d := (dx*dx + dy*dy) // self inner prod
+	return ColorFunc(func(xi, yi int) color.Color {
+		x := float64(xi) + 0.5
+		y := float64(yi) + 0.5
+		dfx := x - p1x
+		dfy := y - p1y
+		return g.tColor((dx*dfx+dy*dfy)/d, opacity)
+	})
 }

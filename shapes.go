@@ -2,6 +2,7 @@
 //_
 // created: 2/06/2018 by S.R.Wiley
 // Functions that rasterize common shapes easily.
+
 package rasterx
 
 import (
@@ -14,12 +15,14 @@ import (
 // in ellipse parametric when approximating an off-axis ellipse.
 const MaxDx float64 = math.Pi / 8
 
+// ToFixedP converst two floats to a fixed point.
 func ToFixedP(x, y float64) (p fixed.Point26_6) {
 	p.X = fixed.Int26_6(x * 64)
 	p.Y = fixed.Int26_6(y * 64)
 	return
 }
 
+// AddCircle adds a circle to the Adder p
 func AddCircle(cx, cy, r float64, p Adder) {
 	AddEllipse(cx, cy, r, r, 0, p)
 }
@@ -92,6 +95,7 @@ func AddRoundRect(minX, minY, maxX, maxY, rx, ry, rot float64, gf GapFunc, p Add
 	q.Stop(true)
 }
 
+//AddArc adds an arc to the adder p
 func AddArc(points []float64, cx, cy, px, py float64, p Adder) (lx, ly float64) {
 	rotX := points[2] * math.Pi / 180 // Convert degress to radians
 	largeArc := points[3] != 0
@@ -187,7 +191,7 @@ func FindEllipseCenter(ra, rb *float64, rotX, startX, startY, endX, endY float64
 	midX, midY := nx/2, ny/2
 	midlenSq := midX*midX + midY*midY
 
-	var hr float64 = 0.0
+	var hr float64
 	if *rb**rb < midlenSq {
 		// Requested ellipse does not exist; scale ra, rb to fit. Length of
 		// span is greater than max width of ellipse, must scale *ra, *rb

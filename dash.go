@@ -1,12 +1,15 @@
 // Copyright 2017 by the rasterx Authors. All rights reserved.
 //_
 // created: 2017 by S.R.Wiley
+
 package rasterx
 
 import (
 	"golang.org/x/image/math/fixed"
 )
 
+// Dasher struct extends the Stroker and can draw
+// dashed lines with end capping
 type Dasher struct {
 	Stroker
 	Dashes                    []fixed.Int26_6
@@ -26,6 +29,7 @@ func (r *Dasher) joinF() {
 	}
 }
 
+// Start starts a dashed line
 func (r *Dasher) Start(a fixed.Point26_6) {
 	// Advance dashPlace to the dashOffset start point and set deltaDash
 	if len(r.Dashes) > 0 {
@@ -48,10 +52,6 @@ func (r *Dasher) Start(a fixed.Point26_6) {
 // lineF overides stroker lineF to modify the the call as below
 // while performing the join in a dashed stroke.
 func (r *Dasher) lineF(b fixed.Point26_6) {
-	if len(r.Dashes) == 0 {
-		r.Stroker.lineF(b)
-		return
-	}
 	var bnorm fixed.Point26_6
 	a := r.a // Copy local a since r.a is going to change during stroke operation
 	ba := b.Sub(a)
@@ -112,6 +112,7 @@ func (r *Dasher) SetStroke(width, miterLimit fixed.Int26_6, capL, capT CapFunc, 
 	r.sgm = r // Use the full dasher
 }
 
+//Stop terminates a dashed line
 func (r *Dasher) Stop(isClosed bool) {
 	if len(r.Dashes) == 0 {
 		r.Stroker.Stop(isClosed)
@@ -179,7 +180,7 @@ func (r *Dasher) QuadBezier(b, c fixed.Point26_6) {
 	r.quadBezierf(r.sgm, b, c)
 }
 
-// StrokeQuadBezier starts a stroked quadratic bezier.
+// CubeBezier starts a stroked cubic bezier.
 // It is a low level function exposed for the purposes of callbacks
 // and debugging.
 func (r *Dasher) CubeBezier(b, c, d fixed.Point26_6) {
@@ -192,11 +193,7 @@ func (r *Dasher) CubeBezier(b, c, d fixed.Point26_6) {
 // values.
 func NewDasher(width, height int, scanner Scanner) *Dasher {
 	r := new(Dasher)
-	if scanner != nil {
-		r.Scanner = scanner
-	} else {
-		r.Scanner = new(ScannerGV)
-	}
+	r.Scanner = scanner
 	r.SetBounds(width, height)
 	r.SetWinding(true)
 	r.SetStroke(1*64, 4*64, ButtCap, nil, FlatGap, MiterClip, nil, 0)

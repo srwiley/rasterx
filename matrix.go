@@ -1,9 +1,7 @@
-// Copyright 2018 The oksvg Authors. All rights reserved.
-//
-// created: 2018 by S.R.Wiley
-//_
 // Implements SVG style matrix transformations.
 // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
+// Copyright 2018 The oksvg Authors. All rights reserved.
+
 package rasterx
 
 import (
@@ -12,6 +10,7 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
+// Matrix2D represents an SVG style matrix
 type Matrix2D struct {
 	A, B, C, D, E, F float64
 }
@@ -61,12 +60,14 @@ func (m *matrix3) Invert() *matrix3 {
 	return &cofact
 }
 
+// Invert returns the inverse matrix
 func (a Matrix2D) Invert() Matrix2D {
 	n := &matrix3{a.A, a.C, a.E, a.B, a.D, a.F, 0, 0, 1}
 	n = n.Invert()
 	return Matrix2D{A: n[0], C: n[1], E: n[2], B: n[3], D: n[4], F: n[5]}
 }
 
+// Mult returns a*b
 func (a Matrix2D) Mult(b Matrix2D) Matrix2D {
 	return Matrix2D{
 		A: a.A*b.A + a.C*b.B,
@@ -77,31 +78,33 @@ func (a Matrix2D) Mult(b Matrix2D) Matrix2D {
 		F: a.B*b.E + a.D*b.F + a.F}
 }
 
+// Identity is the identity matrix
 var Identity = Matrix2D{1, 0, 0, 1, 0, 0}
 
 // TFixed transforms a fixed.Point26_6 by the matrix
-func (m Matrix2D) TFixed(a fixed.Point26_6) (b fixed.Point26_6) {
-	b.X = fixed.Int26_6((float64(a.X)*m.A + float64(a.Y)*m.C) + m.E*64)
-	b.Y = fixed.Int26_6((float64(a.X)*m.B + float64(a.Y)*m.D) + m.F*64)
+func (a Matrix2D) TFixed(x fixed.Point26_6) (y fixed.Point26_6) {
+	y.X = fixed.Int26_6((float64(x.X)*a.A + float64(x.Y)*a.C) + a.E*64)
+	y.Y = fixed.Int26_6((float64(x.X)*a.B + float64(x.Y)*a.D) + a.F*64)
 	return
 }
 
 // Transform multiples the input vector by matrix m and outputs the results vector
 // components.
-func (m Matrix2D) Transform(x1, y1 float64) (x2, y2 float64) {
-	x2 = x1*m.A + y1*m.C + m.E
-	y2 = x1*m.B + y1*m.D + m.F
+func (a Matrix2D) Transform(x1, y1 float64) (x2, y2 float64) {
+	x2 = x1*a.A + y1*a.C + a.E
+	y2 = x1*a.B + y1*a.D + a.F
 	return
 }
 
 // TransformVector is a modidifed version of Transform that ignores the
 // translation components.
-func (m Matrix2D) TransformVector(x1, y1 float64) (x2, y2 float64) {
-	x2 = x1*m.A + y1*m.C
-	y2 = x1*m.B + y1*m.D
+func (a Matrix2D) TransformVector(x1, y1 float64) (x2, y2 float64) {
+	x2 = x1*a.A + y1*a.C
+	y2 = x1*a.B + y1*a.D
 	return
 }
 
+//Scale matrix in x and y dimensions
 func (a Matrix2D) Scale(x, y float64) Matrix2D {
 	return a.Mult(Matrix2D{
 		A: x,
@@ -112,6 +115,7 @@ func (a Matrix2D) Scale(x, y float64) Matrix2D {
 		F: 0})
 }
 
+//SkewY skews the matrix in the Y dimension
 func (a Matrix2D) SkewY(theta float64) Matrix2D {
 	return a.Mult(Matrix2D{
 		A: 1,
@@ -122,6 +126,7 @@ func (a Matrix2D) SkewY(theta float64) Matrix2D {
 		F: 0})
 }
 
+//SkewX skews the matrix in the X dimension
 func (a Matrix2D) SkewX(theta float64) Matrix2D {
 	return a.Mult(Matrix2D{
 		A: 1,
@@ -132,6 +137,7 @@ func (a Matrix2D) SkewX(theta float64) Matrix2D {
 		F: 0})
 }
 
+//Translate translates the matrix to the x , y point
 func (a Matrix2D) Translate(x, y float64) Matrix2D {
 	return a.Mult(Matrix2D{
 		A: 1,
@@ -142,6 +148,7 @@ func (a Matrix2D) Translate(x, y float64) Matrix2D {
 		F: y})
 }
 
+//Rotate rotate the matrix by theta
 func (a Matrix2D) Rotate(theta float64) Matrix2D {
 	return a.Mult(Matrix2D{
 		A: math.Cos(theta),
@@ -152,15 +159,18 @@ func (a Matrix2D) Rotate(theta float64) Matrix2D {
 		F: 0})
 }
 
+// MatrixAdder is an adder that applies matrix M to all points
 type MatrixAdder struct {
 	Adder
 	M Matrix2D
 }
 
+// Reset sets the matrix M to identity
 func (t *MatrixAdder) Reset() {
 	t.M = Identity
 }
 
+// Start starts a new path
 func (t *MatrixAdder) Start(a fixed.Point26_6) {
 	t.Adder.Start(t.M.TFixed(a))
 }

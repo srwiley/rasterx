@@ -16,17 +16,20 @@ import (
 	"golang.org/x/image/vector"
 )
 
+// At returns the color at the point x,y
 func (c *ColorFuncImage) At(x, y int) color.Color {
 	return c.colorFunc(x, y)
 }
 
 type (
+	// ColorFuncImage implements and image
+	// using the provided colorFunc
 	ColorFuncImage struct {
 		image.Uniform
 		colorFunc ColorFunc
 	}
 
-	// Rasterizer converts a path to a raster using the grainless algorithm.
+	// ScannerGV uses the google vector rasterizer
 	ScannerGV struct {
 		r vector.Rasterizer
 		//a, first fixed.Point26_6
@@ -39,6 +42,7 @@ type (
 	}
 )
 
+// ClipImage is a clipable ColorFuncImage
 type ClipImage struct {
 	ColorFuncImage
 	clip image.Rectangle
@@ -46,23 +50,26 @@ type ClipImage struct {
 
 var noApha = color.RGBA{0, 0, 0, 0}
 
+// GetPathExtent returns the extent of the path
 func (s *ScannerGV) GetPathExtent() fixed.Rectangle26_6 {
-	return fixed.Rectangle26_6{fixed.Point26_6{s.minX, s.minY}, fixed.Point26_6{s.maxX, s.maxY}}
+	return fixed.Rectangle26_6{Min: fixed.Point26_6{X: s.minX, Y: s.minY}, Max: fixed.Point26_6{X: s.maxX, Y: s.maxY}}
 }
 
+// At returns the color of the ClipImage at the point x,y
 func (c *ClipImage) At(x, y int) color.Color {
 	p := image.Point{x, y}
 	if p.In(c.clip) {
 		return c.ColorFuncImage.At(x, y)
-	} else {
-		return noApha
 	}
+	return noApha
 }
 
+// SetWinding set the winding rule for the scanner
 func (s *ScannerGV) SetWinding(useNonZeroWinding bool) {
 	// no-op as scanner gv does not support even-odd winding
 }
 
+// SetColor set the color type for the scanner
 func (s *ScannerGV) SetColor(clr interface{}) {
 	switch c := clr.(type) {
 	case color.Color:
@@ -123,6 +130,7 @@ func (s *ScannerGV) Line(b fixed.Point26_6) {
 	s.r.LineTo(float32(b.X)/64, float32(b.Y)/64)
 }
 
+// Draw renders the accumulate scan to the desination
 func (s *ScannerGV) Draw() {
 	// This draws the entire bounds of the image, because
 	// at this point the alpha mask does not shift with the
@@ -155,7 +163,7 @@ func (s *ScannerGV) SetBounds(width, height int) {
 	s.r.Reset(width, height)
 }
 
-// NewScanner creates a new Scanner with the given bounds.
+// NewScannerGV creates a new Scanner with the given bounds.
 func NewScannerGV(width, height int, dest *image.RGBA,
 	targ image.Rectangle) *ScannerGV {
 	s := new(ScannerGV)
