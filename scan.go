@@ -41,6 +41,7 @@ type (
 		Source                 image.Image
 		Offset                 image.Point
 		minX, minY, maxX, maxY fixed.Int26_6 // keep track of bounds
+		scaleX, scaleY         float32
 	}
 )
 
@@ -123,13 +124,13 @@ func (s *ScannerGV) set(a fixed.Point26_6) {
 // Start starts a new path at the given point.
 func (s *ScannerGV) Start(a fixed.Point26_6) {
 	s.set(a)
-	s.r.MoveTo(float32(a.X)/64, float32(a.Y)/64)
+	s.r.MoveTo(float32(a.X)/64*s.scaleX, float32(a.Y)/64*s.scaleY)
 }
 
 // Line adds a linear segment to the current curve.
 func (s *ScannerGV) Line(b fixed.Point26_6) {
 	s.set(b)
-	s.r.LineTo(float32(b.X)/64, float32(b.Y)/64)
+	s.r.LineTo(float32(b.X)/64*s.scaleX, float32(b.Y)/64*s.scaleY)
 }
 
 // Draw renders the accumulate scan to the desination
@@ -176,5 +177,7 @@ func NewScannerGV(width, height int, dest *image.RGBA,
 	s.clipImage.ColorFuncImage.Uniform.C = &color.RGBA{255, 0, 0, 255}
 	s.Source = &s.clipImage.ColorFuncImage.Uniform
 	s.Offset = image.Point{0, 0}
+	s.scaleX = float32(targ.Max.X-targ.Min.X)/float32(width)
+	s.scaleY = float32(targ.Max.Y-targ.Min.Y)/float32(height)
 	return s
 }
