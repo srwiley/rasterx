@@ -14,7 +14,33 @@ import (
 
 	. "github.com/srwiley/rasterx"
 	"golang.org/x/image/colornames"
+	"golang.org/x/image/math/fixed"
 )
+
+func getOpenCubicPath() (p Path) {
+	p.Start(ToFixedP(50, 50))
+	p.Line(ToFixedP(100, 50)) // Yes I meant to do this
+	p.CubeBezier(ToFixedP(120, 70), ToFixedP(80, 90), ToFixedP(100, 100))
+	p.CubeBezier(ToFixedP(101, 95), ToFixedP(80, 90), ToFixedP(75, 100))
+	p.Line(ToFixedP(95, 120))
+	p.Line(ToFixedP(78, 100))
+	return
+}
+
+func getOpenCubicPath2() (p Path) {
+	//M87, 212 C 138, 90,  269, 75, 259, 147 C 254, 71, 104,176, 128, 282z
+	p.Start(ToFixedP(87, 212))
+	p.CubeBezier(ToFixedP(138, 90), ToFixedP(269, 75), ToFixedP(259, 147))
+	p.CubeBezier(ToFixedP(254, 71), ToFixedP(104, 176), ToFixedP(128, 282))
+	p.LineTo(ToFixedP(87, 212))
+	p.Stop(true)
+
+	p.Start(ToFixedP(600-87, 212))
+	p.CubeBezier(ToFixedP(600-138, 90), ToFixedP(600-269, 75), ToFixedP(600-259, 147))
+	p.CubeBezier(ToFixedP(600-254, 71), ToFixedP(600-104, 176), ToFixedP(600-128, 282))
+	p.Stop(true)
+	return
+}
 
 func getPartPath() (testPath Path) {
 	//M210.08,222.97
@@ -252,10 +278,22 @@ func isClose(a, b Matrix2D, epsilon float64) bool {
 	return true
 }
 
+func TestCircleLineIntersect(t *testing.T) {
+	a := fixed.Point26_6{X: 30 * 64, Y: 55 * 64}
+	b := fixed.Point26_6{X: 40 * 64, Y: 40 * 64}
+	c := fixed.Point26_6{X: 40 * 64, Y: 40 * 64}
+	r := fixed.Int26_6(10 * 64)
+	_, touching := RayCircleIntersection(a, b, c, r)
+	if touching == false {
+		t.Error("Ray not intersecting circle ", touching)
+	}
+}
+
 func TestGeom(t *testing.T) {
-	epsilon := 1e-6 // allowed range for round off error
+	epsilon := 1e-12 // allowed range for round off error
 	a := Identity
 	b := a.Rotate(-math.Pi / 2)
+
 	x, y := 3.0, 4.0
 	m, n := b.Transform(x, y)
 	if math.Abs(m-y) > epsilon || math.Abs(x+n) > epsilon {
@@ -265,6 +303,12 @@ func TestGeom(t *testing.T) {
 	m, n = b.TransformVector(x, y)
 	if math.Abs(m-y) > epsilon || math.Abs(x+n) > epsilon {
 		t.Error("rotate failed", m-y, x-n, m, n)
+	}
+
+	c := b.Invert()
+	d := b.Mult(c)
+	if isClose(d, Identity, epsilon) == false {
+		t.Error("Matrix inversion failed", b, c, d)
 	}
 
 	s1 := a.SkewY(2)
@@ -349,7 +393,51 @@ func TestShapes(t *testing.T) {
 	scannerGV.Dest = imgs
 	d.SetStroke(10*64, 4*64, RoundCap, nil, RoundGap, MiterClip, nil, 0)
 	doShapes(t, d, d, "testdata/shapeGVD6.png", imgs)
+
+	getOpenCubicPath().AddTo(f)
+	imgs = image.NewRGBA(image.Rect(0, 0, wx, wy))
+	scannerGV.Dest = imgs
+	f.Draw()
+	f.Clear()
+
+	s.SetStroke(4*64, 1, SquareCap, nil, RoundGap, ArcClip)
+	getOpenCubicPath().AddTo(s)
+	imgs = image.NewRGBA(image.Rect(0, 0, wx, wy))
+	scannerGV.Dest = imgs
+	s.Draw()
+	s.Clear()
+
+	err := SaveToPngFile("testdata/shapeT1.png", imgs)
+	if err != nil {
+		t.Error(err)
+	}
+
+	s.SetStroke(4<<6, 2<<6, SquareCap, nil, RoundGap, ArcClip)
+	getOpenCubicPath2().AddTo(s)
+	imgs = image.NewRGBA(image.Rect(0, 0, wx, wy))
+	scannerGV.Dest = imgs
+	s.Draw()
+	s.Clear()
+
+	err = SaveToPngFile("testdata/shapeT2.png", imgs)
+	if err != nil {
+		t.Error(err)
+	}
+
+	s.SetStroke(25<<6, 200<<6, CubicCap, CubicCap, CubicGap, ArcClip)
+	getOpenCubicPath2().AddTo(s)
+	imgs = image.NewRGBA(image.Rect(0, 0, wx, wy))
+	scannerGV.Dest = imgs
+	s.Draw()
+	s.Clear()
+
+	err = SaveToPngFile("testdata/shapeT3.png", imgs)
+	if err != nil {
+		t.Error(err)
+	}
+
 	d.SetBounds(-20, -12) // Test min x and y value checking
+
 }
 
 func doShapes(t *testing.T, f Scanner, fa Adder, fname string, img image.Image) {
@@ -433,7 +521,7 @@ func TestGradient(t *testing.T) {
 	p := getPartPath()
 
 	f := &d.Filler // This is the anon Filler in the Dasher. It also satisfies
-	// the Rasterizer interface, and will only perform a fill on the path.
+	// the Rasterizer interface, and can only perform a fill on the path.
 
 	offsetPath := &MatrixAdder{Adder: f, M: Identity.Translate(180, 180)}
 
@@ -460,7 +548,7 @@ func TestGradient(t *testing.T) {
 	f.Draw()
 	f.Clear()
 
-	// Let try a sinusoidal grid pattern.
+	// Lets try a sinusoidal grid pattern.
 	var colF ColorFunc = func(x, y int) color.Color {
 		sinx, siny, sinxy := math.Sin(float64(x)*math.Pi/20), math.Sin(float64(y)*math.Pi/10),
 			math.Sin(float64(y+x)*math.Pi/30)

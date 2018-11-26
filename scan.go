@@ -1,9 +1,11 @@
-// Copyright 2018 by the rasterx Authors. All rights reserved.
-//_
-// Created 2017 by S.R.Wiley
-// This version of Scanner wraps the golang.org/x/image/vector
-// rasterizer.
-
+// Package rasterx implements a rasterizer in go.
+// By default rasterx uses ScannerGV to render images
+// which uses the rasterizer in the golang.org/x/image/vector package.
+// The freetype rasterizer under the GNU license can also be used, by
+// downloading the scanFT package.
+//
+// Copyright 2018 All rights reserved.
+// Created: 5/12/2018 by S.R.Wiley
 package rasterx
 
 import (

@@ -1,6 +1,7 @@
-//Package rasterx implements a golang rasterizer
-// Copyright 2018 The oksvg Authors. All rights reserved.
+// Gradient implementation fo rasterx package
+// Copyright 2018 All rights reserved.
 // Created: 5/12/2018 by S.R.Wiley
+
 package rasterx
 
 import (

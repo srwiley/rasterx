@@ -1,6 +1,6 @@
 // Implements SVG style matrix transformations.
 // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
-// Copyright 2018 The oksvg Authors. All rights reserved.
+// Copyright 2018 All rights reserved.
 
 package rasterx
 
