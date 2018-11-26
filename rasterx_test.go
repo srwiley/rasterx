@@ -32,7 +32,7 @@ func getOpenCubicPath2() (p Path) {
 	p.Start(ToFixedP(87, 212))
 	p.CubeBezier(ToFixedP(138, 90), ToFixedP(269, 75), ToFixedP(259, 147))
 	p.CubeBezier(ToFixedP(254, 71), ToFixedP(104, 176), ToFixedP(128, 282))
-	p.LineTo(ToFixedP(87, 212))
+	p.Line(ToFixedP(87, 212))
 	p.Stop(true)
 
 	p.Start(ToFixedP(600-87, 212))
