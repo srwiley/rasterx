@@ -32,7 +32,6 @@ func getOpenCubicPath2() (p Path) {
 	p.Start(ToFixedP(87, 212))
 	p.CubeBezier(ToFixedP(138, 90), ToFixedP(269, 75), ToFixedP(259, 147))
 	p.CubeBezier(ToFixedP(254, 71), ToFixedP(104, 176), ToFixedP(128, 282))
-	p.LineTo(ToFixedP(87, 212))
 	p.Stop(true)
 
 	p.Start(ToFixedP(600-87, 212))
@@ -425,11 +424,14 @@ func TestShapes(t *testing.T) {
 	}
 
 	s.SetStroke(25<<6, 200<<6, CubicCap, CubicCap, CubicGap, ArcClip)
-	getOpenCubicPath2().AddTo(s)
+	p := getOpenCubicPath2()
+	p.AddTo(s)
+	_ = p.String() // Just flexes to ToSVGString
 	imgs = image.NewRGBA(image.Rect(0, 0, wx, wy))
 	scannerGV.Dest = imgs
 	s.Draw()
 	s.Clear()
+	p.Clear()
 
 	err = SaveToPngFile("testdata/shapeT3.png", imgs)
 	if err != nil {
@@ -461,6 +463,11 @@ func doShapes(t *testing.T, f Scanner, fa Adder, fname string, img image.Image) 
 	f.Draw()
 	f.Clear()
 
+	f.SetColor(colornames.Blueviolet)
+	AddRoundRect(30, 30, 130, 130, 150, 150, 0, nil, fa)
+	f.Draw()
+	f.Clear()
+
 	f.SetColor(ApplyOpacity(colornames.Lightgoldenrodyellow, 0.6))
 	AddCircle(80, 80, 50, fa)
 	f.Draw()
@@ -482,6 +489,23 @@ func doShapes(t *testing.T, f Scanner, fa Adder, fname string, img image.Image) 
 	err := SaveToPngFile(fname, img)
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+func TestFindElipsecenter(t *testing.T) {
+	var ra, rb = 10.0, 5.0
+	cx, cy := FindEllipseCenter(&ra, &rb, 0.0, 0.0, 0.0, 20.0, 0.0, true, true)
+	if cx != 10 || cy != 0 || ra != 10 || rb != 5 {
+		t.Error("Find elipse center failed ", cx, cy, ra, rb)
+	}
+	cx, cy = FindEllipseCenter(&ra, &rb, 0.0, 0.0, 0.0, 35.0, 5.0, false, true)
+	if ra == 10 || rb == 5 {
+		t.Error("Find elipse center failed with resize of radiuses ", cx, cy, ra, rb)
+	}
+	ra, rb = 5.0, 5.0
+	cx, cy = FindEllipseCenter(&ra, &rb, 0.0, 0.0, 0.0, 35.0, 5.0, true, true)
+	if ra == 10 || rb == 5 {
+		t.Error("Find elipse center failed with resize of radiuses ", cx, cy, ra, rb)
 	}
 }
 
@@ -542,9 +566,58 @@ func TestGradient(t *testing.T) {
 	p.AddTo(offsetPath)
 	f.Draw()
 	f.Clear()
+	offsetPath.Reset()
+	if isClose(offsetPath.M, Identity, 1e-12) == false {
+		t.Error("path reset failed", offsetPath)
+	}
 
 	scannerGV.SetColor(linearGradient.GetColorFunction(1.0))
 	p.AddTo(f)
+	f.Draw()
+	f.Clear()
+
+	linearGradient.Spread = RepeatSpread
+	scannerGV.SetColor(linearGradient.GetColorFunction(1.0))
+	AddRect(20, 460, 150, 610, 45, f)
+	f.Draw()
+	f.Clear()
+
+	radialGradient.Units = UserSpaceOnUse
+	scannerGV.SetColor(radialGradient.GetColorFunction(1.0))
+	AddRect(300, 20, 450, 170, 0, f)
+	f.Draw()
+	f.Clear()
+
+	linearGradient.Units = UserSpaceOnUse
+	scannerGV.SetColor(linearGradient.GetColorFunction(1.0))
+	AddRect(300, 180, 450, 200, 0, f)
+	f.Draw()
+	f.Clear()
+
+	radialGradient.Units = ObjectBoundingBox
+	radialGradient.Points = [5]float64{0.5, 0.5, 0, 0, 0.2} // move focus away from
+	scannerGV.SetColor(radialGradient.GetColorFunction(1.0))
+	AddRect(300, 210, 450, 300, 0, f)
+	f.Draw()
+	f.Clear()
+
+	radialGradient.Units = UserSpaceOnUse
+	linearGradient.Spread = PadSpread
+	radialGradient.Points = [5]float64{0.5, 0.5, 0.1, 0.1, 0.5} // move focus away from center
+	scannerGV.SetColor(radialGradient.GetColorFunction(1.0))
+	AddRect(20, 160, 150, 310, 0, f)
+	f.Draw()
+	f.Clear()
+
+	linearGradient.Stops = linearGradient.Stops[0:1]
+	scannerGV.SetColor(linearGradient.GetColorFunction(1.0))
+	AddRect(300, 180, 450, 200, 0, f)
+	f.Draw()
+	f.Clear()
+
+	linearGradient.Stops = linearGradient.Stops[0:0]
+	scannerGV.SetColor(linearGradient.GetColorFunction(1.0))
+	AddRect(300, 180, 450, 200, 0, f)
 	f.Draw()
 	f.Clear()
 
