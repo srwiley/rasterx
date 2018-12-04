@@ -15,7 +15,7 @@ import (
 // in ellipse parametric when approximating an off-axis ellipse.
 const MaxDx float64 = math.Pi / 8
 
-// ToFixedP converst two floats to a fixed point.
+// ToFixedP converts two floats to a fixed point.
 func ToFixedP(x, y float64) (p fixed.Point26_6) {
 	p.X = fixed.Int26_6(x * 64)
 	p.Y = fixed.Int26_6(y * 64)

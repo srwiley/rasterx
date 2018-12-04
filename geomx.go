@@ -127,7 +127,7 @@ func (p Path) AddTo(q Adder) {
 	for i := 0; i < len(p); {
 		switch PathCommand(p[i]) {
 		case PathMoveTo:
-			q.Stop(false) // Fixes issues #1 by described by Djadala; implict close if currently in path.
+			q.Stop(false) // Fixes issues #1 by described by Djadala; implicit close if currently in path.
 			q.Start(fixed.Point26_6{X: p[i+1], Y: p[i+2]})
 			i += 3
 		case PathLineTo:

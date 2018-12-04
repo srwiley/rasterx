@@ -202,7 +202,6 @@ func strokeArc(p Adder, a, s1, s2 fixed.Point26_6, clockwise bool, trimStart,
 	if trimEnd > 0 {
 		ds := (deltaTheta * float64(trimEnd)) / float64(1<<tStrokeShift)
 		deltaTheta -= ds
-		theta2 -= ds
 	}
 
 	segs := int(math.Abs(deltaTheta)/(math.Pi/cubicsPerHalfCircle)) + 1
