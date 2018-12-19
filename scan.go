@@ -13,6 +13,7 @@ import (
 	"math"
 
 	"image/color"
+	"image/draw"
 
 	"golang.org/x/image/math/fixed"
 	"golang.org/x/image/vector"
@@ -35,7 +36,7 @@ type (
 	ScannerGV struct {
 		r vector.Rasterizer
 		//a, first fixed.Point26_6
-		Dest                   *image.RGBA
+		Dest                   draw.Image
 		Targ                   image.Rectangle
 		clipImage              *ClipImage
 		Source                 image.Image
@@ -166,7 +167,7 @@ func (s *ScannerGV) SetBounds(width, height int) {
 }
 
 // NewScannerGV creates a new Scanner with the given bounds.
-func NewScannerGV(width, height int, dest *image.RGBA,
+func NewScannerGV(width, height int, dest draw.Image,
 	targ image.Rectangle) *ScannerGV {
 	s := new(ScannerGV)
 	s.SetBounds(width, height)
