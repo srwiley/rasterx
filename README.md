@@ -59,7 +59,7 @@ The package uses an interface called Rasterx, which is satisfied by three struct
 
 ![rasterx Scheme](/doc/schematic.png?raw=true "Rasterx Scheme")
 
-Eash of the Filler, Dasher, and Stroker can function on their own and each implement the Rasterx interface, so if you need just the curve filling but no stroking capability, you only need a Filler. On the other hand if you have created a Dasher and want to use it to Fill, you can just do this:
+Each of the Filler, Dasher, and Stroker can function on their own and each implement the Rasterx interface, so if you need just the curve filling but no stroking capability, you only need a Filler. On the other hand if you have created a Dasher and want to use it to Fill, you can just do this:
 
 ```golang
 filler := &dasher.Filler
